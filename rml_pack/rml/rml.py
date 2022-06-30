@@ -1,6 +1,7 @@
 from sklearn.neighbors      import KDTree
 from sklearn.decomposition  import PCA
 import numpy                as np
+import gudhi                as gd
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -17,9 +18,13 @@ class Simplex:
         pointcloud : (n_samples, n_features) np.array
             The pointcloud data from which we build our simplex. 
             (TODO be able to add points?)
+        Simplex : gd.SimplexTree
+            Stores the simplex structure with GUDHI
         edges : (n_edges,) np.array
             The ith entry contains the indexes of the 'safe' points which 
             connect to the ith point.
+        dim : int
+            The dimension of our simplex
 
         Attributes for Testing
         --------------------
@@ -33,7 +38,9 @@ class Simplex:
             PCA estimates the intrinsic dimension about each point
         """
         self.pointcloud = None
+        self.simplex = gd.SimplexTree()
         self.edges = None
+        self.dim = None
 
         self.vis = None
         self.dims = None
@@ -88,7 +95,7 @@ class Simplex:
     def find_safe_edges(self, idx, ind, dist, threshold_var, edge_sen):
         """
         Computes the list of safe edges of points from visible edges 
-        which connect to the 'idx' point.
+        which connect to the 'idx' point and stores in our SimplexTree.
 
         Parameters
         ----------
@@ -110,6 +117,7 @@ class Simplex:
         """
         point = self.pointcloud[idx]
         edges = self.pointcloud[ind] - point  # ascending by length
+        self.simplex.insert([idx, ind[0]])  # first point is always included
         dims = []
         vars = []
         threshold_edge = edge_sen * np.mean(dist)
@@ -129,12 +137,13 @@ class Simplex:
                 return ind[:j-1], dims, vars
             
             dim0 = dim1
+            self.simplex.insert([idx, ind[j-1]])
 
         return ind, dims, vars
 
-    def build_edges(self, pointcloud, k=10, threshold_var=0.02, edge_sen=0.5):
+    def build_simplex(self, pointcloud, k=10, threshold_var=0.02, edge_sen=0.5):
         """
-        Computes the edges of our simplex.
+        Computes the edges of our simplex and the GUDHI simplex tree.
 
         Parameters
         ----------
@@ -158,14 +167,9 @@ class Simplex:
         self.vis = visible_edges
         safe_edges = [self.find_safe_edges(i, visible_edges[i][0], visible_edges[i][1], threshold_var, edge_sen) for i in range(n)]
         self.edges = [safe_edges[i][0] for i in range(n)]
+        self.simple
 
         # for testing
         self.dims = [np.asarray(safe_edges[i][1]) for i in range(n)]
         self.vars = [safe_edges[i][2] for i in range(n)]
 
-    def find_dim(self):
-        """
-        Computes the dimension of our pointcloud from
-        its simplex.
-        """
-        pass
