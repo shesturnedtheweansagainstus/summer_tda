@@ -19,12 +19,12 @@ class Simplex:
             The pointcloud data from which we build our simplex. 
             (TODO be able to add points?)
         Simplex : gd.SimplexTree
-            Stores the simplex structure with GUDHI
+            Stores the simplex structure with GUDHI.
         edges : (n_edges,) np.array
             The ith entry contains the indexes of the 'safe' points which 
             connect to the ith point.
         dim : int
-            The dimension of our simplex
+            The dimension of our simplex.
 
         Attributes for Testing
         --------------------
@@ -32,10 +32,10 @@ class Simplex:
             Same as edges but for 'visible' points.
         dims : (n_samples,) list
             Collection of 1-D np.arrays which track how
-            PCA estimates the intincit dimension about each point
+            PCA estimates the intincit dimension about each point.
         vars : (n_samples,) list
             Collection of 1-D np.arrays which track how
-            PCA estimates the intrinsic dimension about each point
+            PCA estimates the intrinsic dimension about each point.
         """
         self.pointcloud = None
         self.simplex = gd.SimplexTree()
@@ -167,7 +167,8 @@ class Simplex:
         self.vis = visible_edges
         safe_edges = [self.find_safe_edges(i, visible_edges[i][0], visible_edges[i][1], threshold_var, edge_sen) for i in range(n)]
         self.edges = [safe_edges[i][0] for i in range(n)]
-        self.simple
+        self.simplex.expansion(1000)
+        self.dim = self.simplex.dimension()
 
         # for testing
         self.dims = [np.asarray(safe_edges[i][1]) for i in range(n)]
