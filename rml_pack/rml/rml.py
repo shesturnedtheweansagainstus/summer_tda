@@ -1,3 +1,4 @@
+from sys import api_version
 from sklearn.neighbors      import KDTree
 from sklearn.decomposition  import PCA
 import numpy                as np
@@ -20,11 +21,16 @@ class Simplex:
             (TODO be able to add points?)
         Simplex : gd.SimplexTree
             Stores the simplex structure with GUDHI.
-        edges : (n_edges,) np.array
+        edges : (n_samples,) list
             The ith entry contains the indexes of the 'safe' points which 
+            connect to the ith point.
+        edge_len : (n_samples,) list
+            The ith entry contains the length of the 'safe' edges which 
             connect to the ith point.
         dim : int
             The dimension of our simplex.
+        coords : (n_samples, self.dim) np.array
+            Riemannian normal coordinates from the 'naive' algorithm.
 
         Attributes for Testing
         --------------------
@@ -40,7 +46,9 @@ class Simplex:
         self.pointcloud = None
         self.simplex = gd.SimplexTree()
         self.edges = None
+        self.edge_len = None
         self.dim = None
+        self.coords = None
 
         self.vis = None
         self.dims = None
@@ -114,6 +122,7 @@ class Simplex:
         -------
         ind : 1-D np.array
             Indexes of safe points connected to the 'idx' point.
+        TODO added rest
         """
         point = self.pointcloud[idx]
         edges = self.pointcloud[ind] - point  # ascending by length
@@ -134,12 +143,12 @@ class Simplex:
                 dim1 = np.sum(var >= threshold_var)
 
             if dim1>dim0 and dist[j-1]-dist[j-2]>threshold_edge:
-                return ind[:j-1], dims, vars
+                return ind[:j-1], dist[:j-1], dims, vars
             
             dim0 = dim1
             self.simplex.insert([idx, ind[j-1]])
 
-        return ind, dims, vars
+        return ind, dist, dims, vars
 
     def build_simplex(self, pointcloud, k=10, threshold_var=0.02, edge_sen=0.5):
         """
@@ -167,10 +176,21 @@ class Simplex:
         self.vis = visible_edges
         safe_edges = [self.find_safe_edges(i, visible_edges[i][0], visible_edges[i][1], threshold_var, edge_sen) for i in range(n)]
         self.edges = [safe_edges[i][0] for i in range(n)]
-        self.simplex.expansion(1000)
+        self.edge_len = [safe_edges[i][1] for i in range(n)]
+
+        self.simplex.expansion(1000)  # likely max needed
         self.dim = self.simplex.dimension()
 
         # for testing
-        self.dims = [np.asarray(safe_edges[i][1]) for i in range(n)]
-        self.vars = [safe_edges[i][2] for i in range(n)]
+        self.dims = [np.asarray(safe_edges[i][2]) for i in range(n)]
+        self.vars = [safe_edges[i][3] for i in range(n)]
+
+    def normal_coords(self):
+        """
+        Computes the Riemannian normal coordinates from 
+        the 'naive' algorithm.
+        """
+        if self.edges == None:
+            return False
+        else:
 
