@@ -1,5 +1,7 @@
-from sys import api_version
+from dataclasses import replace
 from sklearn.neighbors      import KDTree
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import dijkstra
 from sklearn.decomposition  import PCA
 import numpy                as np
 import gudhi                as gd
@@ -21,12 +23,11 @@ class Simplex:
             (TODO be able to add points?)
         Simplex : gd.SimplexTree
             Stores the simplex structure with GUDHI.
-        edges : (n_samples,) list
+        edges : (n_samples,) list containing 1-D np.array
             The ith entry contains the indexes of the 'safe' points which 
             connect to the ith point.
-        edge_len : (n_samples,) list
-            The ith entry contains the length of the 'safe' edges which 
-            connect to the ith point.
+        edge_matrix : (n_samples, n_samples) np.array // csr_matrix
+            Gives the structure of our edge connection.
         dim : int
             The dimension of our simplex.
         coords : (n_samples, self.dim) np.array
@@ -45,8 +46,8 @@ class Simplex:
         """
         self.pointcloud = None
         self.simplex = gd.SimplexTree()
-        self.edges = None
-        self.edge_len = None
+        self.edges = []
+        self.edge_matrix = None
         self.dim = None
         self.coords = None
 
@@ -122,33 +123,45 @@ class Simplex:
         -------
         ind : 1-D np.array
             Indexes of safe points connected to the 'idx' point.
-        TODO added rest
+        TODO add rest
         """
         point = self.pointcloud[idx]
         edges = self.pointcloud[ind] - point  # ascending by length
+        threshold_edge = edge_sen * np.mean(dist)
         self.simplex.insert([idx, ind[0]])  # first point is always included
+
+        # for testing
         dims = []
         vars = []
-        threshold_edge = edge_sen * np.mean(dist)
-
+        
         for j in range(2, len(edges)+1):  # need len != 1 
             pca = PCA()
             pca.fit_transform(edges[:j])
             var = pca.explained_variance_ratio_
+
             vars.append(var)
             dims.append(np.sum(var >= threshold_var))
+
             if j==2:
                 dim0 = dim1 = np.sum(var >= threshold_var)
             else:
                 dim1 = np.sum(var >= threshold_var)
 
             if dim1>dim0 and dist[j-1]-dist[j-2]>threshold_edge:
-                return ind[:j-1], dist[:j-1], dims, vars
+                self.edges.append(ind[:j-1])
+                self.edge_matrix[idx, ind[:j-1]] = dist[:j-1]
+                self.edge_matrix[ind[:j-1], idx] = dist[:j-1]
+                return dims, vars
             
             dim0 = dim1
+
             self.simplex.insert([idx, ind[j-1]])
 
-        return ind, dist, dims, vars
+        self.edges.append(ind)
+        self.edge_matrix[idx, ind] = dist
+        self.edge_matrix[ind, idx] = dist
+
+        return dims, vars
 
     def build_simplex(self, pointcloud, k=10, threshold_var=0.02, edge_sen=0.5):
         """
@@ -167,6 +180,8 @@ class Simplex:
         """
         n = len(pointcloud)
         self.pointcloud = pointcloud
+        self.edge_matrix = np.zeros([n, n])
+
         kd_tree = KDTree(pointcloud, leaf_size=2)  # ALREADY ORDERED ASCENDING
         dists, inds = kd_tree.query(pointcloud, k=k+1)
         dists = dists[:, 1:]  # removes points being compared to itself with KNN
@@ -174,16 +189,15 @@ class Simplex:
 
         visible_edges = [self.find_visible_edge(i, inds[i], dists[i]) for i in range(n)]
         self.vis = visible_edges
-        safe_edges = [self.find_safe_edges(i, visible_edges[i][0], visible_edges[i][1], threshold_var, edge_sen) for i in range(n)]
-        self.edges = [safe_edges[i][0] for i in range(n)]
-        self.edge_len = [safe_edges[i][1] for i in range(n)]
+        dims_vars = [self.find_safe_edges(i, visible_edges[i][0], visible_edges[i][1], threshold_var, edge_sen) for i in range(n)]
+        self.edge_matrix = csr_matrix(self.edge_matrix)
 
         self.simplex.expansion(1000)  # likely max needed
         self.dim = self.simplex.dimension()
 
-        # for testing
-        self.dims = [np.asarray(safe_edges[i][2]) for i in range(n)]
-        self.vars = [safe_edges[i][3] for i in range(n)]
+        # for testing (TODO: convert with logging)
+        self.dims = [np.asarray(dims_vars[i][0]) for i in range(n)]
+        self.vars = [dims_vars[i][1] for i in range(n)]
 
     def normal_coords(self):
         """
@@ -192,5 +206,15 @@ class Simplex:
         """
         if self.edges == None:
             return False
-        else:
+        self.coords = np.zeros([len(self.pointcloud), self.dim])
 
+        # find our base point for T_pM
+        dist_matrix, predecessors = dijkstra(self.edge_matrix, return_predecessors=True)  
+        p_idx = np.argmin(np.amax(dist_matrix, axis=1))  # assumes connected
+        p = self.pointcloud[p_idx]
+        self.coords[p_idx] = 0  
+
+        # set up tangent basis
+        tangent_inds = np.random.choice(self.edges[p_idx], size=self.dim, replace=False)
+        tangent_edges = self.pointcloud[tangent_edges] - p  # problem if dim=1??
+        
