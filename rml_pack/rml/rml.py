@@ -1,13 +1,34 @@
-from dataclasses import replace
-import enum
+from scipy.optimize         import newton
 from sklearn.neighbors      import KDTree
-from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import dijkstra
+from scipy.sparse           import csr_matrix
+from scipy.sparse.csgraph   import dijkstra
 from sklearn.decomposition  import PCA
 import numpy                as np
 import gudhi                as gd
 import warnings
 warnings.filterwarnings("ignore")
+
+def naive_solve(x, beta, sigmas, alpha):
+        """
+        Provides the function to solve for 'naive' normal 
+        coordinates.
+
+        Parameters
+        ----------
+        x : float
+            Value of lambda to solve for.
+        beta : (self.dim,) np.array
+            Represents U^Tb.
+        sigmas : (self.dim,) np.array
+            Array of A's singular values.
+        alpha : float
+            Represents ||q-b||.
+        """
+        sigmas_squared = sigmas ** 2
+        beta_squared = beta ** 2
+        denom = (sigmas_squared+x)**2
+        out = np.sum(beta_squared * sigmas_squared * (1/denom))
+        return out - alpha ** 2
 
 class Simplex:
     """
@@ -200,24 +221,6 @@ class Simplex:
         self.dims = [np.asarray(dims_vars[i][0]) for i in range(n)]
         self.vars = [dims_vars[i][1] for i in range(n)]
 
-    def naive_solve(x, beta, sigmas, alpha):
-        """
-        Provides the function to solve for normal coordinates
-
-        Parameters
-        ----------
-        x : float
-            Value of lambda to solve for.
-        beta : (self.dim,) np.array
-            Represents U^Tb.
-        sigmas : (self.dim,) np.array
-            Array of A's singular values.
-        alpha : float
-            Represents ||q-b||
-        """
-
-        
-
     def normal_coords(self):
         """
         Computes the Riemannian normal coordinates from 
@@ -248,8 +251,8 @@ class Simplex:
         edge_coords = np.linalg.lstsq(tangent_edges, edge_points)[0]
         edge_coords = (edge_coords / np.linalg.norm(edge_coords, axis=0)) * edge_scalar
         self.coords[self.edges[p_idx]] = np.transpose(edge_coords)
-        for i in self.edges[p_idx]:
-            computed_points[i] = True
+        for idx in self.edges[p_idx]:
+            computed_points[idx] = True
 
         # then interate over all other points based off of increasing distance from p??
         p_dist = dist_matrix[p_idx]
@@ -260,9 +263,11 @@ class Simplex:
             else:
                 q = self.pointcloud[idx]
                 pred = predecessors[p_idx, idx]  # (index of) point before idx on the shortest path from p to idx ! not -9999
+                computed_points_b = [i for i in self.edges[pred] if computed_points[i]]
+                k = len(computed_points_b)
 
                 # treat as edge point
-                if np.sum([computed_points[i] for i in self.edges[pred]]) < self.dim:  # also check if b is computed??
+                if k < self.dim:  # also check if b is computed??
                     edge_points = q - p
                     edge_scalar = np.linalg.norm(edge_points)
                     edge_coords = np.linalg.lstsq(tangent_edges, edge_points)[0]
@@ -272,8 +277,6 @@ class Simplex:
                 else:
                     b = self.pointcloud[pred]
                     b_prime = self.coords[pred]
-                    computed_points_b = [i for i in self.edges[pred] if computed_points[i]]
-                    k = len(computed_points_b)
 
                     alpha = np.linalg.norm(q-b)  # ||q-b||
 
@@ -287,6 +290,13 @@ class Simplex:
 
                     U, sigmas, _ = np.linalg.svd(A, full_matrices=False)
                     beta = U.T @ y
+
+                    x = newton(naive_solve, 0, args=(beta, sigmas, alpha))  # set x0=0 from paper
+                    normal_coord = np.linalg.inv(A.T @ A + x * np.eye(self.dim)) @ A.T @ y + b_prime
+                    self.coords[idx] = normal_coord
+                    computed_points[idx] = True
+        
+        return True
 
 
 
