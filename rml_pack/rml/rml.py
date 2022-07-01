@@ -1,4 +1,5 @@
 from dataclasses import replace
+import enum
 from sklearn.neighbors      import KDTree
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
@@ -206,9 +207,9 @@ class Simplex:
         """
         if self.edges == None:
             return False
+
         n = len(self.pointcloud)
         self.coords = np.zeros([n, self.dim])
-
         computed_points = {i: False for i in range(n)}  # tracks which coordinates has been computed
 
         # find our base point for T_pM
@@ -216,10 +217,12 @@ class Simplex:
         p_idx = np.argmin(np.amax(dist_matrix, axis=1))  # assumes connected
         p = self.pointcloud[p_idx]
         self.coords[p_idx] = 0  
+        computed_points[p_idx] = True
 
         # set up tangent basis
         tangent_inds = np.random.choice(self.edges[p_idx], size=self.dim, replace=False)
-        tangent_edges = np.transpose(self.pointcloud[tangent_inds] - p)  # problem if dim=1??
+        tangent_edges = np.transpose(self.pointcloud[tangent_inds] - p)  # problem if dim=1??  (dim, dim)
+        tangent_edges = np.linalg.qr(tangent_edges)[0]  # gives orthonormal basis for T_pM
         
         # compute normal coords for p's edge points
         edge_points = np.transpose(self.pointcloud[self.edges[p_idx]] - p)
@@ -227,8 +230,38 @@ class Simplex:
         edge_coords = np.linalg.lstsq(tangent_edges, edge_points)[0]
         edge_coords = (edge_coords / np.linalg.norm(edge_coords, axis=0)) * edge_scalar
         self.coords[self.edges[p_idx]] = np.transpose(edge_coords)
+        for i in self.edges[p_idx]:
+            computed_points[i] = True
 
-        
+        # then interate over all other points based off of increasing distance from p??
+        p_dist = dist_matrix[p_idx]
+        sorted_inds = np.argsort(p_dist)
+        for idx in sorted_inds:
+            if computed_points[idx]:
+                continue
+            else:
+                pred = predecessors[p_idx, idx]  # (index of) point before idx on the shortest path from p to idx ! not -9999
+
+                # treat as edge point
+                if np.sum([computed_points[i] for i in self.edges[pred]]) < self.dim:
+                    edge_points = self.pointcloud[idx] - p
+                    edge_scalar = np.linalg.norm(edge_points)
+                    edge_coords = np.linalg.lstsq(tangent_edges, edge_points)[0]
+                    edge_coords = (edge_coords / np.linalg.norm(edge_coords)) * edge_scalar
+                    self.coords[idx] = edge_coords
+
+                else:
+                    alpha = 0
+                    y = 0
+                    A = 0
+
+
+
+
+
+
+
+
 
 
 
