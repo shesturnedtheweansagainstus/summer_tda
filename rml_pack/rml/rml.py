@@ -206,7 +206,10 @@ class Simplex:
         """
         if self.edges == None:
             return False
-        self.coords = np.zeros([len(self.pointcloud), self.dim])
+        n = len(self.pointcloud)
+        self.coords = np.zeros([n, self.dim])
+
+        computed_points = {i: False for i in range(n)}  # tracks which coordinates has been computed
 
         # find our base point for T_pM
         dist_matrix, predecessors = dijkstra(self.edge_matrix, return_predecessors=True)  
@@ -216,5 +219,17 @@ class Simplex:
 
         # set up tangent basis
         tangent_inds = np.random.choice(self.edges[p_idx], size=self.dim, replace=False)
-        tangent_edges = self.pointcloud[tangent_edges] - p  # problem if dim=1??
+        tangent_edges = np.transpose(self.pointcloud[tangent_inds] - p)  # problem if dim=1??
         
+        # compute normal coords for p's edge points
+        edge_points = np.transpose(self.pointcloud[self.edges[p_idx]] - p)
+        edge_scalar = np.linalg.norm(edge_points, axis=0)
+        edge_coords = np.linalg.lstsq(tangent_edges, edge_points)[0]
+        edge_coords = (edge_coords / np.linalg.norm(edge_coords, axis=0)) * edge_scalar
+        self.coords[self.edges[p_idx]] = np.transpose(edge_coords)
+
+        
+
+
+
+
