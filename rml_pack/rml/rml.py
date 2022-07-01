@@ -200,6 +200,24 @@ class Simplex:
         self.dims = [np.asarray(dims_vars[i][0]) for i in range(n)]
         self.vars = [dims_vars[i][1] for i in range(n)]
 
+    def naive_solve(x, beta, sigmas, alpha):
+        """
+        Provides the function to solve for normal coordinates
+
+        Parameters
+        ----------
+        x : float
+            Value of lambda to solve for.
+        beta : (self.dim,) np.array
+            Represents U^Tb.
+        sigmas : (self.dim,) np.array
+            Array of A's singular values.
+        alpha : float
+            Represents ||q-b||
+        """
+
+        
+
     def normal_coords(self):
         """
         Computes the Riemannian normal coordinates from 
@@ -240,20 +258,37 @@ class Simplex:
             if computed_points[idx]:
                 continue
             else:
+                q = self.pointcloud[idx]
                 pred = predecessors[p_idx, idx]  # (index of) point before idx on the shortest path from p to idx ! not -9999
 
                 # treat as edge point
-                if np.sum([computed_points[i] for i in self.edges[pred]]) < self.dim:
-                    edge_points = self.pointcloud[idx] - p
+                if np.sum([computed_points[i] for i in self.edges[pred]]) < self.dim:  # also check if b is computed??
+                    edge_points = q - p
                     edge_scalar = np.linalg.norm(edge_points)
                     edge_coords = np.linalg.lstsq(tangent_edges, edge_points)[0]
                     edge_coords = (edge_coords / np.linalg.norm(edge_coords)) * edge_scalar
                     self.coords[idx] = edge_coords
 
                 else:
-                    alpha = 0
-                    y = 0
-                    A = 0
+                    b = self.pointcloud[pred]
+                    b_prime = self.coords[pred]
+                    computed_points_b = [i for i in self.edges[pred] if computed_points[i]]
+                    k = len(computed_points_b)
+
+                    alpha = np.linalg.norm(q-b)  # ||q-b||
+
+                    y = self.pointcloud[computed_points_b] - b  # rows are c_i-b
+                    y /= np.linalg.norm(y, axis=1).reshape(k, 1) * alpha
+                    y *= q-b
+                    y = np.sum(y, axis=1)  # 1-D np.array
+
+                    A = self.coords[computed_points_b] - b_prime  # (k, dim) then U (with full_matrices=False) gives (k, dim) for U and U^Tb has (dim,)
+                    A /= np.linalg.norm(A, axis=1).reshape(k, 1) * alpha  
+
+                    U, sigmas, _ = np.linalg.svd(A, full_matrices=False)
+                    beta = U.T @ y
+
+
 
 
 
