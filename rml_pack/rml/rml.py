@@ -70,7 +70,7 @@ class Simplex:
         self.simplex = gd.SimplexTree()
         self.edges = []
         self.edge_matrix = None
-        self.dim = None
+        self.dim = None  # check other methods for dim estimation
         self.coords = None
 
         self.vis = None
@@ -237,7 +237,7 @@ class Simplex:
         dist_matrix, predecessors = dijkstra(self.edge_matrix, return_predecessors=True)  
         p_idx = np.argmin(np.amax(dist_matrix, axis=1))  # assumes connected
         p = self.pointcloud[p_idx]
-        self.coords[p_idx] = 0  
+        #self.coords[p_idx] = 0  
         computed_points[p_idx] = True
 
         # set up tangent basis
@@ -297,17 +297,5 @@ class Simplex:
                     computed_points[idx] = True
         
         return True
-
-
-
-
-
-
-
-
-
-
-
-
 
 
