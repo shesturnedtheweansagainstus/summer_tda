@@ -14,7 +14,6 @@ def naive_solve(x, beta, sigmas, alpha):
         """
         Provides the function to solve for 'naive' normal 
         coordinates.
-
         Parameters
         ----------
         x : float
@@ -56,7 +55,6 @@ class Simplex:
             The dimension of our simplex.
         coords : (n_samples, self.dim) np.array
             Riemannian normal coordinates from the 'naive' algorithm.
-
         Attributes for Testing
         --------------------
         vis : (n_edges,) np.array
@@ -84,7 +82,6 @@ class Simplex:
         Computes a list of the indexes of points visible from 
         the 'idx' point, and their distances from this point 
         (in ascending length).
-
         Parameters
         ----------
         idx : int
@@ -129,7 +126,6 @@ class Simplex:
         """
         Computes the list of safe edges of points from visible edges 
         which connect to the 'idx' point and stores in our SimplexTree.
-
         Parameters
         ----------
         idx : int
@@ -142,7 +138,6 @@ class Simplex:
             The threshold to estimate the local intrinsic dimension by PCA.
         edge_sen : positive float
             The sensitivity with which we choose safe edges.
-
         Returns
         -------
         ind : 1-D np.array
@@ -172,7 +167,7 @@ class Simplex:
                 dim1 = np.sum(var >= threshold_var)
 
             if dim1>dim0 and dist[j-1]-dist[j-2]>threshold_edge:
-                self.edges.append(ind[:j-1])
+                #self.edges.append(ind[:j-1])
                 self.edge_matrix[idx, ind[:j-1]] = dist[:j-1]
                 self.edge_matrix[ind[:j-1], idx] = dist[:j-1]
                 return dims, vars
@@ -181,7 +176,7 @@ class Simplex:
 
             self.simplex.insert([idx, ind[j-1]])
 
-        self.edges.append(ind)
+        #self.edges.append(ind)
         self.edge_matrix[idx, ind] = dist
         self.edge_matrix[ind, idx] = dist
 
@@ -190,7 +185,6 @@ class Simplex:
     def build_simplex(self, pointcloud, k=10, threshold_var=0.02, edge_sen=0.5):
         """
         Computes the edges of our simplex and the GUDHI simplex tree.
-
         Parameters
         ----------
         pointcloud : (n_samples, n_features) np.array
@@ -214,6 +208,8 @@ class Simplex:
         visible_edges = [self.find_visible_edge(i, inds[i], dists[i]) for i in range(n)]
         self.vis = visible_edges
         dims_vars = [self.find_safe_edges(i, visible_edges[i][0], visible_edges[i][1], threshold_var, edge_sen) for i in range(n)]
+        self.edges = [np.where(self.edge_matrix[i]!=0)[0] for i in range(n)]  # ensures can see all edges to i
+
         self.edge_matrix = csr_matrix(self.edge_matrix)
 
         self.simplex.expansion(1000)  # likely max needed
@@ -230,20 +226,17 @@ class Simplex:
         """
         if self.edges == None:
             return False
-        
-        count = 0
-        edge = []
 
         n = len(self.pointcloud)
         self.coords = np.zeros([n, self.dim])
-        computed_points = {i: False for i in range(n)}  # tracks which coordinates has been computed
+        computed_points = np.full(n, False)  # tracks which coordinates has been computed
+
+        edge = np.full(n, False)  # tracks edge points
 
         # find our base point for T_pM
         dist_matrix, predecessors = dijkstra(self.edge_matrix, return_predecessors=True)  
         p_idx = np.argmin(np.amax(dist_matrix, axis=1))  # assumes connected
-        print(f'p_idx : {p_idx}')
-        p = self.pointcloud[p_idx]
-        #self.coords[p_idx] = 0  
+        p = self.pointcloud[p_idx] 
         computed_points[p_idx] = True
 
         # set up tangent basis
@@ -257,13 +250,14 @@ class Simplex:
         edge_coords = np.linalg.lstsq(tangent_edges, edge_points)[0]
         edge_coords = (edge_coords / np.linalg.norm(edge_coords, axis=0)) * edge_scalar
         self.coords[self.edges[p_idx]] = np.transpose(edge_coords)
-        for idx in self.edges[p_idx]:
-            computed_points[idx] = True
-            edge.append(idx)
+        computed_points[self.edges[p_idx]] = True
+
+        edge[self.edges[p_idx]] = True
 
         # then interate over all other points based off of increasing distance from p??
         p_dist = dist_matrix[p_idx]
         sorted_inds = np.argsort(p_dist)
+
         for idx in sorted_inds:
             if computed_points[idx]:
                 continue
@@ -274,16 +268,15 @@ class Simplex:
                 k = len(computed_points_b)
 
                 # treat as edge point
-                if k < self.dim:  # also check if b is computed??
+                if k < self.dim or not computed_points[pred]:  # also check if b is computed??
                     edge_points = q - p
                     edge_scalar = np.linalg.norm(edge_points)
                     edge_coords = np.linalg.lstsq(tangent_edges, edge_points)[0]
                     edge_coords = (edge_coords / np.linalg.norm(edge_coords)) * edge_scalar
                     self.coords[idx] = edge_coords
-                    edge.append(idx)
+                    edge[idx] = True
 
                 else:
-                    count += 1
                     b = self.pointcloud[pred]
                     b_prime = self.coords[pred]
 
@@ -308,38 +301,23 @@ class Simplex:
 
                     obj = x @ Q @ x + c @ x + y.T @ y
                     m.setObjective(obj, GRB.MINIMIZE)
-                    m.addConstr(x@x == alpha, name="c")
+                    m.addConstr(x@x == alpha**2, name="c")
                     m.optimize()
                     self.coords[idx] = x.X + b_prime
-                    #print(x.X)
-                    #print('Obj: %g' % m.ObjVal)
 
                     """
                     U, sigmas, _ = np.linalg.svd(A, full_matrices=False)
                     beta = U.T @ y
-
                     try:
-                        x = newton(naive_solve, 0.01, args=(beta, sigmas, alpha))  # set x0=0 from paper
+                        x = newton(naive_solve, 0, args=(beta, sigmas, alpha))  # set x0=0 from paper
                         normal_coord = np.linalg.inv(A.T @ A + x * np.eye(self.dim)) @ A.T @ y + b_prime
                         self.coords[idx] = normal_coord
                     except:
                         print(count)
-                        return p_idx, computed_points, idx, pred, computed_points_b
-
-                        
-
-                    
-                    except:
-                        edge_points = q - p
-                        edge_scalar = np.linalg.norm(edge_points)
-                        edge_coords = np.linalg.lstsq(tangent_edges, edge_points)[0]
-                        edge_coords = (edge_coords / np.linalg.norm(edge_coords)) * edge_scalar
-                        self.coords[idx] = edge_coords
+                        return p_idx, edge, computed_points, idx, pred, computed_points_b
                     """
-
-                
+                    
+                        
                 computed_points[idx] = True
-        print(count)
-        return edge
 
-
+        return p_idx, edge
