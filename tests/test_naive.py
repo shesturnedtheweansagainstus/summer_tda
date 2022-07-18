@@ -35,7 +35,7 @@ point = np.hstack([pointx, pointy, np.zeros([len(pointx), 1])])
 swiss, swiss_c = ds.make_swiss_roll(n_samples=n_points, random_state=0)
 
 # swiss roll with hole (and color map)
-#swiss_hole, swiss_hole_c = ds.make_swiss_roll(n_samples=n_points, hole=True, random_state=0) update?
+#swiss_hole, swiss_hole_c = ds.make_swiss_roll(n_samples=n_points, random_state=0, hole=True)
 
 # 2-sphere
 sphere1 = tadasets.dsphere(n=n_points)
@@ -56,6 +56,27 @@ sphere4 = sphere4[sphere4[:, 2]<=0.8]
 cond = np.logical_and(sphere4[:, 0]>=-0.1, sphere4[:, 0]<=0.1)
 cond = np.logical_and(cond, sphere4[:, 1]>=0)
 sphere4 = sphere4[~cond]
+
+# klein bottle
+def klein(n=30, m=40, r=10, a=20):
+    theta, phi = np.meshgrid(np.linspace(0, 2.*np.pi, n), np.linspace(0, 2.*np.pi, m))
+    x = (r*np.cos(theta) + a) * np.cos(phi)
+    y = (r*np.cos(theta) + a) * np.sin(phi)
+    z = r*np.sin(theta) * np.cos(phi/2)
+    w = r*np.sin(theta) * np.sin(phi/2)
+    return np.column_stack((np.concatenate(x),np.concatenate(y),np.concatenate(z),np.concatenate(w)))
+
+klein_data = klein()+5 # (1200, 4)  MORE TESTS
+
+# S curve
+s_curve, s_curve_c = ds.make_s_curve(n_samples=n_points, random_state=0)
+
+# sphere_plane
+def plane(l,n):
+    return np.column_stack((np.random.sample(n)*2*l-l,np.random.sample(n)*2*l-l , np.zeros(n)))
+plane_pc = plane(2, 1000)
+sphere_pc = tadasets.dsphere(n=1000)
+sphere_plane = np.concatenate((plane_pc, sphere_pc), axis = 0)
 
 def test_normal_coords_edges(dataset, c=None, k=10, threshold_var=0.08, edge_sen=1, two_d=False):
     """
@@ -158,8 +179,11 @@ if __name__ == '__main__':
     #datasets = [point, uni_point, swiss, sphere1, sphere2, sphere3, sphere4]
     #datasets = [point]
     #datasets = [sphere4]
-    datasets = [sphere2]
+    #datasets = [sphere2]
     #datasets = [swiss]
+    #datasets = [klein_data]
+    #datasets = [s_curve]
+    datasets = [sphere_plane]
 
     for dataset in datasets:
         #test_normal_coords_edges(dataset, dataset[:, 0], k=10, threshold_var=0.08, edge_sen=1)
