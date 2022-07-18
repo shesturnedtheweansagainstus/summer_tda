@@ -60,6 +60,15 @@ def test_noise(dataset, noise_dataset, c, cn, **kwargs):
 
 if __name__ == '__main__':
 
+    """
+    TODO:
+
+        Implement variants 1, 2 from Ximena
+        Dimensionality estimation
+        Edge detection
+
+    """
+
     n = 1000
     
     params = {'k':10, 'threshold_var':0.08, 'edge_sen':1}
