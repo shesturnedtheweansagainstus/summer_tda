@@ -265,8 +265,10 @@ class Simplex:
                 q = self.pointcloud[idx]
                 pred = predecessors[p_idx, idx]  # (index of) point before idx on the shortest path from p to idx ! not -9999
                 computed_points_b = [i for i in self.edges[pred] if computed_points[i]]
+                computed_points_b += [j for i in computed_points_b for j in self.edges[i] if computed_points[j] and j not in computed_points_b and j!= pred]
                 k = len(computed_points_b)
 
+                '''
                 # treat as edge point
                 if k < self.dim or not computed_points[pred]:  # also check if b is computed??
                     edge_points = q - p
@@ -277,45 +279,46 @@ class Simplex:
                     edge[idx] = True
 
                 else:
-                    b = self.pointcloud[pred]
-                    b_prime = self.coords[pred]
+                '''
+                b = self.pointcloud[pred]
+                b_prime = self.coords[pred]
 
-                    alpha = np.linalg.norm(q-b)  # ||q-b||
+                alpha = np.linalg.norm(q-b)  # ||q-b||
 
-                    y = self.pointcloud[computed_points_b] - b  # rows are c_i-b
-                    y /= np.linalg.norm(y, axis=1).reshape(k, 1)
-                    y /= alpha
-                    y *= q-b
-                    y = np.sum(y, axis=1)  # 1-D np.array
+                y = self.pointcloud[computed_points_b] - b  # rows are c_i-b
+                y /= np.linalg.norm(y, axis=1).reshape(k, 1)
+                y /= alpha
+                y *= q-b
+                y = np.sum(y, axis=1)  # 1-D np.array
 
-                    A = self.coords[computed_points_b] - b_prime  # (k, dim) then U (with full_matrices=False) gives (k, dim) for U and U^Tb has (dim,)
-                    A /= np.linalg.norm(A, axis=1).reshape(k, 1) * alpha  
-                    
-                    m = gp.Model()
-                    m.setParam('OutputFlag', 0)
-                    m.setParam(GRB.Param.NonConvex, 2)
-                    x = m.addMVar(shape=self.dim, lb=float('-inf'))
+                A = self.coords[computed_points_b] - b_prime  # (k, dim) then U (with full_matrices=False) gives (k, dim) for U and U^Tb has (dim,)
+                A /= np.linalg.norm(A, axis=1).reshape(k, 1) * alpha  
+                
+                m = gp.Model()
+                m.setParam('OutputFlag', 0)
+                m.setParam(GRB.Param.NonConvex, 2)
+                x = m.addMVar(shape=self.dim, lb=float('-inf'))
 
-                    Q = A.T @ A
-                    c = -2 * y.T @ A
+                Q = A.T @ A
+                c = -2 * y.T @ A
 
-                    obj = x @ Q @ x + c @ x + y.T @ y
-                    m.setObjective(obj, GRB.MINIMIZE)
-                    m.addConstr(x@x == alpha**2, name="c")
-                    m.optimize()
-                    self.coords[idx] = x.X + b_prime
+                obj = x @ Q @ x + c @ x + y.T @ y
+                m.setObjective(obj, GRB.MINIMIZE)
+                m.addConstr(x@x == alpha**2, name="c")
+                m.optimize()
+                self.coords[idx] = x.X + b_prime
 
-                    """
-                    U, sigmas, _ = np.linalg.svd(A, full_matrices=False)
-                    beta = U.T @ y
-                    try:
-                        x = newton(naive_solve, 0, args=(beta, sigmas, alpha))  # set x0=0 from paper
-                        normal_coord = np.linalg.inv(A.T @ A + x * np.eye(self.dim)) @ A.T @ y + b_prime
-                        self.coords[idx] = normal_coord
-                    except:
-                        print(count)
-                        return p_idx, edge, computed_points, idx, pred, computed_points_b
-                    """
+                """
+                U, sigmas, _ = np.linalg.svd(A, full_matrices=False)
+                beta = U.T @ y
+                try:
+                    x = newton(naive_solve, 0, args=(beta, sigmas, alpha))  # set x0=0 from paper
+                    normal_coord = np.linalg.inv(A.T @ A + x * np.eye(self.dim)) @ A.T @ y + b_prime
+                    self.coords[idx] = normal_coord
+                except:
+                    print(count)
+                    return p_idx, edge, computed_points, idx, pred, computed_points_b
+                """
                     
                         
                 computed_points[idx] = True
