@@ -124,13 +124,46 @@ def test_normal_coords(dataset, c=None, k=10, threshold_var=0.08, edge_sen=1, tw
 
     plt.show()
 
+def test_3_sphere(n=2000, k=10, threshold_var=0.08, edge_sen=1):
+
+    dataset = tadasets.dsphere(n=n, d=3, ambient=10)
+    #dataset = dataset[dataset[:, 0]>=0]
+
+    print(f'Number of points : {len(dataset)}')
+
+    S = rml.Simplex()
+    S.build_simplex(dataset, k=k, threshold_var=threshold_var, edge_sen=edge_sen)
+    _, _ = S.normal_coords()
+
+    fig = plt.figure(figsize=(20, 10))
+    ax = fig.gca(projection = '3d')
+    ax.scatter3D(S.coords[:,0], S.coords[:, 1], S.coords[:, 2], c=dataset[:, 0])  # grading by x
+
+    plt.show()
+
+
 if __name__ == '__main__':
+
+    """
+    TODO:
+
+        Go through Ximena .ipynb
+
+        Implement dimension estimation for noise
+
+        Write tests for the two variants
+    
+    """
 
     #datasets = [point, uni_point, swiss, sphere1, sphere2, sphere3, sphere4]
     #datasets = [point]
-    datasets = [sphere4]
+    #datasets = [sphere4]
+    datasets = [sphere2]
     #datasets = [swiss]
 
     for dataset in datasets:
         #test_normal_coords_edges(dataset, dataset[:, 0], k=10, threshold_var=0.08, edge_sen=1)
-        test_normal_coords(dataset, dataset[:, 0], k=13, threshold_var=0.08, edge_sen=1)
+        test_normal_coords(dataset, dataset[:, 0], k=10, threshold_var=0.08, edge_sen=1)
+        pass
+    
+    #test_3_sphere(n=3000)

@@ -182,7 +182,7 @@ class Simplex:
 
         return dims, vars
 
-    def build_simplex(self, pointcloud, k=10, threshold_var=0.02, edge_sen=0.5):
+    def build_simplex(self, pointcloud, k=10, threshold_var=0.08, edge_sen=1):
         """
         Computes the edges of our simplex and the GUDHI simplex tree.
         Parameters
@@ -265,29 +265,18 @@ class Simplex:
                 q = self.pointcloud[idx]
                 pred = predecessors[p_idx, idx]  # (index of) point before idx on the shortest path from p to idx ! not -9999
                 computed_points_b = [i for i in self.edges[pred] if computed_points[i]]
+
+                # we add the indexes of computed points connected to the c_i which are not already in the list and are not b
                 computed_points_b += [j for i in computed_points_b for j in self.edges[i] if computed_points[j] and j not in computed_points_b and j!= pred]
                 k = len(computed_points_b)
 
-                '''
-                # treat as edge point
-                if k < self.dim or not computed_points[pred]:  # also check if b is computed??
-                    edge_points = q - p
-                    edge_scalar = np.linalg.norm(edge_points)
-                    edge_coords = np.linalg.lstsq(tangent_edges, edge_points)[0]
-                    edge_coords = (edge_coords / np.linalg.norm(edge_coords)) * edge_scalar
-                    self.coords[idx] = edge_coords
-                    edge[idx] = True
-
-                else:
-                '''
                 b = self.pointcloud[pred]
                 b_prime = self.coords[pred]
 
                 alpha = np.linalg.norm(q-b)  # ||q-b||
 
                 y = self.pointcloud[computed_points_b] - b  # rows are c_i-b
-                y /= np.linalg.norm(y, axis=1).reshape(k, 1)
-                y /= alpha
+                y /= np.linalg.norm(y, axis=1).reshape(k, 1) * alpha
                 y *= q-b
                 y = np.sum(y, axis=1)  # 1-D np.array
 
@@ -306,20 +295,7 @@ class Simplex:
                 m.setObjective(obj, GRB.MINIMIZE)
                 m.addConstr(x@x == alpha**2, name="c")
                 m.optimize()
-                self.coords[idx] = x.X + b_prime
-
-                """
-                U, sigmas, _ = np.linalg.svd(A, full_matrices=False)
-                beta = U.T @ y
-                try:
-                    x = newton(naive_solve, 0, args=(beta, sigmas, alpha))  # set x0=0 from paper
-                    normal_coord = np.linalg.inv(A.T @ A + x * np.eye(self.dim)) @ A.T @ y + b_prime
-                    self.coords[idx] = normal_coord
-                except:
-                    print(count)
-                    return p_idx, edge, computed_points, idx, pred, computed_points_b
-                """
-                    
+                self.coords[idx] = x.X + b_prime                    
                         
                 computed_points[idx] = True
 
