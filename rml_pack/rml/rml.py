@@ -8,6 +8,8 @@ import gudhi                as gd
 import warnings
 import gurobipy             as gp
 from gurobipy               import GRB
+import matplotlib.pyplot    as plt
+
 warnings.filterwarnings("ignore")
 
 def naive_solve(x, beta, sigmas, alpha):
@@ -226,7 +228,7 @@ class Simplex:
         """
         if self.edges == None:
             return False
-
+        
         n = len(self.pointcloud)
         self.coords = np.zeros([n, self.dim])
         computed_points = np.full(n, False)  # tracks which coordinates has been computed
@@ -269,6 +271,96 @@ class Simplex:
                 # we add the indexes of computed points connected to the c_i which are not already in the list and are not b
                 computed_points_b += [j for i in computed_points_b for j in self.edges[i] if computed_points[j] and j not in computed_points_b and j!= pred]
                 k = len(computed_points_b)
+
+                b = self.pointcloud[pred]
+                b_prime = self.coords[pred]
+
+                alpha = np.linalg.norm(q-b)  # ||q-b||
+
+                y = self.pointcloud[computed_points_b] - b  # rows are c_i-b
+                y /= np.linalg.norm(y, axis=1).reshape(k, 1) * alpha
+                y *= q-b
+                y = np.sum(y, axis=1)  # 1-D np.array
+
+                A = self.coords[computed_points_b] - b_prime  # (k, dim) then U (with full_matrices=False) gives (k, dim) for U and U^Tb has (dim,)
+                A /= np.linalg.norm(A, axis=1).reshape(k, 1) * alpha  
+                
+                m = gp.Model()
+                m.setParam('OutputFlag', 0)
+                m.setParam(GRB.Param.NonConvex, 2)
+                x = m.addMVar(shape=self.dim, lb=float('-inf'))
+
+                Q = A.T @ A
+                c = -2 * y.T @ A
+
+                obj = x @ Q @ x + c @ x + y.T @ y
+                m.setObjective(obj, GRB.MINIMIZE)
+                m.addConstr(x@x == alpha**2, name="c")
+                m.optimize()
+                self.coords[idx] = x.X + b_prime                    
+                        
+                computed_points[idx] = True
+
+        return p_idx, edge
+
+    def normal_coords_new(self):
+        """
+        Computes the Riemannian normal coordinates from 
+        the 'naive' algorithm.
+        """
+        if self.edges == None:
+            return False
+
+        n = len(self.pointcloud)
+        self.coords = np.zeros([n, self.dim])
+        computed_points = np.full(n, False)  # tracks which coordinates has been computed
+
+        edge = np.full(n, False)  # tracks edge points
+
+        # find our base point for T_pM
+        dist_matrix, predecessors = dijkstra(self.edge_matrix, return_predecessors=True)  
+        p_idx = np.argmin(np.amax(dist_matrix, axis=1))  # assumes connected
+        p = self.pointcloud[p_idx] 
+        computed_points[p_idx] = True
+        
+        # set up tangent basis
+        tangent_inds = np.random.choice(self.edges[p_idx], size=self.dim, replace=False)
+        tangent_edges = np.transpose(self.pointcloud[tangent_inds] - p)  # problem if dim=1??  (dim, dim)
+        tangent_edges = np.linalg.qr(tangent_edges)[0]  # gives orthonormal basis for T_pM
+        
+        # compute normal coords for p's edge points
+        edge_points = np.transpose(self.pointcloud[self.edges[p_idx]] - p)
+        edge_scalar = np.linalg.norm(edge_points, axis=0)
+        edge_coords = np.linalg.lstsq(tangent_edges, edge_points)[0]
+        edge_coords = (edge_coords / np.linalg.norm(edge_coords, axis=0)) * edge_scalar
+        self.coords[self.edges[p_idx]] = np.transpose(edge_coords)
+        computed_points[self.edges[p_idx]] = True
+
+        edge[self.edges[p_idx]] = True
+
+        # then interate over all other points based off of increasing distance from p??
+        p_dist = dist_matrix[p_idx]
+        sorted_inds = np.argsort(p_dist)
+
+        for idx in sorted_inds:
+            if computed_points[idx]:
+                continue
+            else:
+                q = self.pointcloud[idx]
+                pred = predecessors[p_idx, idx]  # (index of) point before idx on the shortest path from p to idx ! not -9999
+                computed_points_b = [i for i in self.edges[pred] if computed_points[i]]
+
+                # we add the indexes of computed points connected to the c_i which are not already in the list and are not b
+                
+                # NOTE
+                if len(computed_points_b) < self.dim:
+                    extra_computed_points = [j for i in computed_points_b for j in self.edges[i] if computed_points[j] and j not in computed_points_b and j!= pred]
+                    extra_computed_points_idx = np.argsort(dist_matrix[idx, extra_computed_points])
+                    #print(extra_computed_points_idx)
+                    #print(computed_points_b)
+                    o = self.dim-len(computed_points_b)
+                    computed_points_b += list(np.asarray(extra_computed_points)[extra_computed_points_idx[:o]])
+                k = len(computed_points_b)  # should equal dim
 
                 b = self.pointcloud[pred]
                 b_prime = self.coords[pred]

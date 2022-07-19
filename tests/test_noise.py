@@ -8,11 +8,11 @@ from scipy.optimize         import newton
 from sklearn.neighbors      import KDTree
 from scipy.sparse           import csr_matrix
 from scipy.sparse.csgraph   import dijkstra
+from scipy.spatial.distance import directed_hausdorff
 from sklearn.decomposition  import PCA
 from sklearn                import datasets as ds
 from pathlib import Path
 
-from zmq import THREAD_AFFINITY_CPU_ADD
 
 warnings.filterwarnings("ignore")
 
@@ -66,6 +66,44 @@ def test_noise(dataset, noise_dataset, c, cn, save=False, **kwargs):
 
     plt.show()
 
+def compare_normal_coords(dataset, c, save=False, **kwargs):
+    """
+    
+    """
+
+    S0 = rml.Simplex()
+    S0.build_simplex(dataset, **kwargs)
+
+    S1 = rml.Simplex()
+    S1.build_simplex(dataset, **kwargs)
+    
+    p_idx, _ = S0.normal_coords()
+    p_idx, _ = S1.normal_coords_new()
+
+    fig = plt.figure(figsize=(30, 30))
+
+    ax1 = fig.add_subplot(1, 3, 1, projection='3d')
+    ax2 = fig.add_subplot(1, 3, 2)
+    ax3 = fig.add_subplot(1, 3, 3)
+
+    ax1.scatter3D(dataset[:,0], dataset[:, 1], dataset[:, 2], c=c)
+    ax1.scatter3D(dataset[p_idx,0], dataset[p_idx, 1], dataset[p_idx, 2], marker='>', color='g', s=100)
+    for i in range(len(dataset)):
+        for k in S0.edges[i]:
+            ax1.plot3D([dataset[i][0], dataset[k][0]],[dataset[i][1], dataset[k][1]], [dataset[i][2], dataset[k][2]], color='black', alpha=0.1)
+
+    ax2.scatter(S0.coords[:, 0], S0.coords[:, 1], c=c)
+    ax3.scatter(S1.coords[:, 0], S1.coords[:, 1], c=c)
+
+    haus_dist = directed_hausdorff(S0.coords, S1.coords)
+    fig.suptitle(f'k={kwargs["k"]}, threshold_var={kwargs["threshold_var"]}, edge_sen={kwargs["edge_sen"]}\nHausdorff Distance={haus_dist}')
+
+    if save:
+            folder = Path("/home/lz1919/Documents/UNI/year_three/summer_tda/pic")
+            save_name = save + '.png'
+            fig.savefig(folder / save_name)
+
+    plt.show()
 
 if __name__ == '__main__':
 
@@ -81,6 +119,15 @@ if __name__ == '__main__':
     n = 1000
     
     params = {'k':10, 'threshold_var':0.08, 'edge_sen':0.5}
+
+    # 2-plane
+    pointx = np.random.uniform(size=[n, 1])
+    pointy = np.random.uniform(size=[n, 1])
+    point = np.hstack([pointx, pointy, np.zeros([len(pointx), 1])])
+    pointn = point + np.random.normal(scale=0.05, size=point.shape)
+    point_c = point[:, 0]
+    point_cn = pointn[:, 0]
+    point_data = [point, pointn, point_c, point_cn]
 
     # swiss roll
     swiss, swiss_c = ds.make_swiss_roll(n_samples=n, random_state=0)
@@ -106,5 +153,6 @@ if __name__ == '__main__':
     s_curven, s_curve_cn = ds.make_s_curve(n_samples=n, noise=0.2, random_state=0)
     s_curve_data = [s_curve, s_curven, s_curve_c, s_curve_cn]
 
-    test_noise(*s_curve_data, save='s_curve_5', **params)
+    #test_noise(*point_data, save='point_data_1', **params)
     #test_noise(*s_curve_data, **params)
+    compare_normal_coords(s_curve, s_curve_c, save=False, **params)
