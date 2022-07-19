@@ -76,6 +76,8 @@ def compare_normal_coords(dataset, c, save=False, **kwargs):
 
     S1 = rml.Simplex()
     S1.build_simplex(dataset, **kwargs)
+
+    print(S0.dim)
     
     p_idx, _ = S0.normal_coords()
     p_idx, _ = S1.normal_coords_new()
@@ -95,8 +97,8 @@ def compare_normal_coords(dataset, c, save=False, **kwargs):
     ax2.scatter(S0.coords[:, 0], S0.coords[:, 1], c=c)
     ax3.scatter(S1.coords[:, 0], S1.coords[:, 1], c=c)
 
-    haus_dist = directed_hausdorff(S0.coords, S1.coords)
-    fig.suptitle(f'k={kwargs["k"]}, threshold_var={kwargs["threshold_var"]}, edge_sen={kwargs["edge_sen"]}\nHausdorff Distance={haus_dist}')
+    #haus_dist = directed_hausdorff(S0.coords, S1.coords)
+    #fig.suptitle(f'k={kwargs["k"]}, threshold_var={kwargs["threshold_var"]}, edge_sen={kwargs["edge_sen"]}\nHausdorff Distance={haus_dist}')
 
     if save:
             folder = Path("/home/lz1919/Documents/UNI/year_three/summer_tda/pic")
@@ -116,7 +118,7 @@ if __name__ == '__main__':
 
     """
 
-    n = 1000
+    n = 2000
     
     params = {'k':10, 'threshold_var':0.08, 'edge_sen':0.5}
 
@@ -149,10 +151,16 @@ if __name__ == '__main__':
     torus_data = [torus, torusn, torus_c, torus_cn]
 
     # s-curve
-    s_curve, s_curve_c = ds.make_s_curve(n_samples=n, random_state=0)
-    s_curven, s_curve_cn = ds.make_s_curve(n_samples=n, noise=0.2, random_state=0)
+    s_curve, s_curve_c = ds.make_s_curve(n_samples=n, random_state=1)
+    s_curven, s_curve_cn = ds.make_s_curve(n_samples=n, noise=0.1, random_state=1)
     s_curve_data = [s_curve, s_curven, s_curve_c, s_curve_cn]
 
     #test_noise(*point_data, save='point_data_1', **params)
     #test_noise(*s_curve_data, **params)
-    compare_normal_coords(s_curve, s_curve_c, save=False, **params)
+    compare_normal_coords(s_curven, s_curve_cn, save=False, **params)
+
+    """
+    
+    PROBLEM WITH DIMENSION WITH NOISE
+    
+    """

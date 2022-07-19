@@ -229,6 +229,8 @@ class Simplex:
         if self.edges == None:
             return False
         
+        self.dim=2
+        
         n = len(self.pointcloud)
         self.coords = np.zeros([n, self.dim])
         computed_points = np.full(n, False)  # tracks which coordinates has been computed
@@ -269,7 +271,14 @@ class Simplex:
                 computed_points_b = [i for i in self.edges[pred] if computed_points[i]]
 
                 # we add the indexes of computed points connected to the c_i which are not already in the list and are not b
-                computed_points_b += [j for i in computed_points_b for j in self.edges[i] if computed_points[j] and j not in computed_points_b and j!= pred]
+
+                if len(computed_points_b) < self.dim:
+                    extra_computed_points = [j for i in computed_points_b for j in self.edges[i] if computed_points[j] and j not in computed_points_b and j!= pred]
+                    extra_computed_points_idx = np.argsort(dist_matrix[idx, extra_computed_points])
+                    o = self.dim-len(computed_points_b)
+                    computed_points_b += list(np.asarray(extra_computed_points)[extra_computed_points_idx[:o]])
+
+                #computed_points_b += [j for i in computed_points_b for j in self.edges[i] if computed_points[j] and j not in computed_points_b and j!= pred]
                 k = len(computed_points_b)
 
                 b = self.pointcloud[pred]
@@ -322,7 +331,8 @@ class Simplex:
         p_idx = np.argmin(np.amax(dist_matrix, axis=1))  # assumes connected
         p = self.pointcloud[p_idx] 
         computed_points[p_idx] = True
-        
+
+        """
         # set up tangent basis
         tangent_inds = np.random.choice(self.edges[p_idx], size=self.dim, replace=False)
         tangent_edges = np.transpose(self.pointcloud[tangent_inds] - p)  # problem if dim=1??  (dim, dim)
@@ -334,6 +344,12 @@ class Simplex:
         edge_coords = np.linalg.lstsq(tangent_edges, edge_points)[0]
         edge_coords = (edge_coords / np.linalg.norm(edge_coords, axis=0)) * edge_scalar
         self.coords[self.edges[p_idx]] = np.transpose(edge_coords)
+        computed_points[self.edges[p_idx]] = True
+        """
+
+        pca = PCA(n_components=self.dim)
+        edge_coords = pca.fit_transform(self.pointcloud[self.edges[p_idx]] - p)
+        self.coords[self.edges[p_idx]] = edge_coords
         computed_points[self.edges[p_idx]] = True
 
         edge[self.edges[p_idx]] = True
