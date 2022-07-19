@@ -10,6 +10,9 @@ from scipy.sparse           import csr_matrix
 from scipy.sparse.csgraph   import dijkstra
 from sklearn.decomposition  import PCA
 from sklearn                import datasets as ds
+from pathlib import Path
+
+from zmq import THREAD_AFFINITY_CPU_ADD
 
 warnings.filterwarnings("ignore")
 
@@ -17,7 +20,7 @@ warnings.filterwarnings("ignore")
 Diagnostics for testing the algorithm with noise
 """
 
-def test_noise(dataset, noise_dataset, c, cn, **kwargs):
+def test_noise(dataset, noise_dataset, c, cn, save=False, **kwargs):
     """
     
     """
@@ -56,7 +59,13 @@ def test_noise(dataset, noise_dataset, c, cn, **kwargs):
     
     ax4.scatter(Sn.coords[:, 0], Sn.coords[:, 1], c=cn)
 
+    if save:
+            folder = Path("/home/lz1919/Documents/UNI/year_three/summer_tda/pic")
+            save_name = save + '.png'
+            fig.savefig(folder / save_name)
+
     plt.show()
+
 
 if __name__ == '__main__':
 
@@ -71,16 +80,31 @@ if __name__ == '__main__':
 
     n = 1000
     
-    params = {'k':10, 'threshold_var':0.08, 'edge_sen':1}
+    params = {'k':10, 'threshold_var':0.08, 'edge_sen':0.5}
 
+    # swiss roll
     swiss, swiss_c = ds.make_swiss_roll(n_samples=n, random_state=0)
     swissn, swiss_cn = ds.make_swiss_roll(n_samples=n, noise=0.2, random_state=0)
     swiss_data = [swiss, swissn, swiss_c, swiss_cn]  # edge_sen:0.8 ?
 
+    # semi-2-sphere
     sphere = tadasets.dsphere(n=n, d=2)
     sphere = sphere[sphere[:, 2]>=0]
     spheren = tadasets.dsphere(n=n, d=2, noise=0.05)
     spheren = spheren[spheren[:, 2]>=0]
     sphere_data = [sphere, spheren, sphere[:, 0], spheren[:, 0]]
 
-    test_noise(*sphere_data, **params)
+    # 2-torus
+    torus = tadasets.torus(n=n)
+    torusn = tadasets.torus(n=n, noise=0.2)
+    torus_c = torus[:, 0]
+    torus_cn = torusn[:, 0]
+    torus_data = [torus, torusn, torus_c, torus_cn]
+
+    # s-curve
+    s_curve, s_curve_c = ds.make_s_curve(n_samples=n, random_state=0)
+    s_curven, s_curve_cn = ds.make_s_curve(n_samples=n, noise=0.2, random_state=0)
+    s_curve_data = [s_curve, s_curven, s_curve_c, s_curve_cn]
+
+    test_noise(*s_curve_data, save='s_curve_5', **params)
+    #test_noise(*s_curve_data, **params)
