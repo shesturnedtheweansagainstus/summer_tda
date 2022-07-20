@@ -225,7 +225,7 @@ class Simplex:
         self.dims = [np.asarray(dims_vars[i][0]) for i in range(n)]
         self.vars = [dims_vars[i][1] for i in range(n)]
 
-    def normal_coords(self):
+    def normal_coords(self, k0=2):
         """
         Computes the Riemannian normal coordinates from 
         the 'naive' algorithm.
@@ -277,7 +277,7 @@ class Simplex:
                 if len(computed_points_b) < self.dim:  # TODO change how many points we take?
                     extra_computed_points = [j for i in computed_points_b for j in self.edges[i] if computed_points[j] and j not in computed_points_b and j!= pred]
                     extra_computed_points_idx = np.argsort(dist_matrix[idx, extra_computed_points])
-                    computed_points_b += list(np.asarray(extra_computed_points)[extra_computed_points_idx[:self.dim-len(computed_points_b)]])
+                    computed_points_b += list(np.asarray(extra_computed_points)[extra_computed_points_idx[:k0+self.dim-len(computed_points_b)]])
 
                 #computed_points_b += [j for i in computed_points_b for j in self.edges[i] if computed_points[j] and j not in computed_points_b and j!= pred]
                 k = len(computed_points_b)
@@ -298,7 +298,7 @@ class Simplex:
                 m = gp.Model()
                 m.setParam('OutputFlag', 0)
                 m.setParam(GRB.Param.NonConvex, 2)
-                x = m.addMVar(shape=self.dim, lb=float('-inf'))
+                x = m.addMVar(shape=int(self.dim), lb=float('-inf'))
 
                 Q = A.T @ A
                 c = -2 * y.T @ A

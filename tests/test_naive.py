@@ -34,6 +34,9 @@ point = np.hstack([pointx, pointy, np.zeros([len(pointx), 1])])
 # swiss roll with color map
 swiss, swiss_c = ds.make_swiss_roll(n_samples=n_points, random_state=0)
 
+# noisy swiss
+swissn, swiss_cn = ds.make_swiss_roll(n_samples=n_points, noise=0.2, random_state=0)
+
 # swiss roll with hole (and color map)
 #swiss_hole, swiss_hole_c = ds.make_swiss_roll(n_samples=n_points, random_state=0, hole=True)
 
@@ -124,24 +127,14 @@ def test_normal_coords(dataset, c, **kwargs):
     """
     S = rml.Simplex()
     S.build_simplex(dataset, **kwargs)
-    print(S.dim)
     
     p_idx, _ = S.normal_coords()
 
     fig = plt.figure(figsize=(20, 10))
-    #ax1 = fig.add_subplot(1, 2, 1) if two_d else fig.add_subplot(1, 2, 1, projection='3d')
+    fig.suptitle(", ".join([i+"="+str(kwargs[i]) for i in kwargs.keys()]) + f', dim={S.dim}')
+
     ax1 = fig.add_subplot(1, 2, 1, projection='3d')
     ax2 = fig.add_subplot(1, 2, 2)
-
-    """
-    if two_d:
-        ax1.scatter(dataset[:,0], dataset[:, 1], c=c)  # grading by x
-        ax1.scatter(dataset[p_idx,0], dataset[p_idx, 1], marker='>', color='g', s=100)
-        for i in range(len(dataset)):
-            for k in S.edges[i]:
-                ax1.plot([dataset[i][0], dataset[k][0]],[dataset[i][1], dataset[k][1]], color='black', alpha=0.1)
-    """
-
 
     ax1.scatter3D(dataset[:,0], dataset[:, 1], dataset[:, 2], c=c)  # grading by x
     ax1.scatter3D(dataset[p_idx,0], dataset[p_idx, 1], dataset[p_idx, 2], marker='>', color='g', s=100)
@@ -176,26 +169,30 @@ if __name__ == '__main__':
     """
     TODO:
 
-        Go through Ximena .ipynb
-
-        Implement dimension estimation for noise
+        Implement dimension estimation for noise - how sensitive ?
+        added k0 another parameter see swiss roll
     
     """
 
-    #datasets = [point, uni_point, swiss, sphere1, sphere2, sphere3, sphere4]
-    #datasets = [point]
-    #datasets = [sphere4]
-    #datasets = [sphere2]
-    datasets = [swiss]
-    #datasets = [klein_data]
-    #datasets = [s_curve]
-    #datasets = [sphere_plane]
+    #dataset = [point, uni_point, swiss, sphere1, sphere2, sphere3, sphere4]
+    #dataset = [point]
+    #dataset = [sphere4]
+    #dataset = [sphere2]
+    dataset = [swiss, swiss_c]
+    #dataset = [swissn, swiss_cn]
+    #dataset = [s_curven, s_curve_cn]
+    #dataset = [klein_data]
+    #dataset = [s_curve, s_curve_c]
+    #dataset = [sphere_plane, sphere_plane[:, 0]]
 
-    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.08, 'edge_sen':0.5}
+    datasets = [dataset]
+
+    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.08, 'edge_sen':1}
 
     for dataset in datasets:
         #test_normal_coords_edges(dataset, dataset[:, 0], k=10, threshold_var=0.08, edge_sen=1)
-        test_normal_coords(dataset, swiss_c, **params)
+        test_normal_coords(*dataset, **params)
         pass
     
+
     #test_3_sphere(n=3000)
