@@ -71,6 +71,9 @@ klein_data = klein()+5 # (1200, 4)  MORE TESTS
 # S curve
 s_curve, s_curve_c = ds.make_s_curve(n_samples=n_points, random_state=0)
 
+# noisy S curve
+s_curven, s_curve_cn = ds.make_s_curve(n_samples=n_points, noise=0.1, random_state=1)
+
 # sphere_plane
 def plane(l,n):
     return np.column_stack((np.random.sample(n)*2*l-l,np.random.sample(n)*2*l-l , np.zeros(n)))
@@ -115,31 +118,36 @@ def test_normal_coords_edges(dataset, c=None, k=10, threshold_var=0.08, edge_sen
 
     plt.show()
 
-def test_normal_coords(dataset, c=None, k=10, threshold_var=0.08, edge_sen=1, two_d=False):
+def test_normal_coords(dataset, c, **kwargs):
     """
     
     """
     S = rml.Simplex()
-    S.build_simplex(dataset, k=k, threshold_var=threshold_var, edge_sen=edge_sen)
+    S.build_simplex(dataset, **kwargs)
+    print(S.dim)
     
     p_idx, _ = S.normal_coords()
 
     fig = plt.figure(figsize=(20, 10))
-    ax1 = fig.add_subplot(1, 2, 1) if two_d else fig.add_subplot(1, 2, 1, projection='3d')
+    #ax1 = fig.add_subplot(1, 2, 1) if two_d else fig.add_subplot(1, 2, 1, projection='3d')
+    ax1 = fig.add_subplot(1, 2, 1, projection='3d')
     ax2 = fig.add_subplot(1, 2, 2)
 
+    """
     if two_d:
         ax1.scatter(dataset[:,0], dataset[:, 1], c=c)  # grading by x
         ax1.scatter(dataset[p_idx,0], dataset[p_idx, 1], marker='>', color='g', s=100)
         for i in range(len(dataset)):
             for k in S.edges[i]:
                 ax1.plot([dataset[i][0], dataset[k][0]],[dataset[i][1], dataset[k][1]], color='black', alpha=0.1)
-    else:
-        ax1.scatter3D(dataset[:,0], dataset[:, 1], dataset[:, 2], c=c)  # grading by x
-        ax1.scatter3D(dataset[p_idx,0], dataset[p_idx, 1], dataset[p_idx, 2], marker='>', color='g', s=100)
-        for i in range(len(dataset)):
-            for k in S.edges[i]:
-                ax1.plot3D([dataset[i][0], dataset[k][0]],[dataset[i][1], dataset[k][1]], [dataset[i][2], dataset[k][2]], color='black', alpha=0.1)
+    """
+
+
+    ax1.scatter3D(dataset[:,0], dataset[:, 1], dataset[:, 2], c=c)  # grading by x
+    ax1.scatter3D(dataset[p_idx,0], dataset[p_idx, 1], dataset[p_idx, 2], marker='>', color='g', s=100)
+    for i in range(len(dataset)):
+        for k in S.edges[i]:
+            ax1.plot3D([dataset[i][0], dataset[k][0]],[dataset[i][1], dataset[k][1]], [dataset[i][2], dataset[k][2]], color='black', alpha=0.1)
 
     ax2.scatter(S.coords[:, 0], S.coords[:, 1], c=c)
 
@@ -171,8 +179,6 @@ if __name__ == '__main__':
         Go through Ximena .ipynb
 
         Implement dimension estimation for noise
-
-        Write tests for the two variants
     
     """
 
@@ -180,14 +186,16 @@ if __name__ == '__main__':
     #datasets = [point]
     #datasets = [sphere4]
     #datasets = [sphere2]
-    #datasets = [swiss]
+    datasets = [swiss]
     #datasets = [klein_data]
     #datasets = [s_curve]
-    datasets = [sphere_plane]
+    #datasets = [sphere_plane]
+
+    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.08, 'edge_sen':0.5}
 
     for dataset in datasets:
         #test_normal_coords_edges(dataset, dataset[:, 0], k=10, threshold_var=0.08, edge_sen=1)
-        test_normal_coords(dataset, dataset[:, 0], k=10, threshold_var=0.08, edge_sen=1)
+        test_normal_coords(dataset, swiss_c, **params)
         pass
     
     #test_3_sphere(n=3000)

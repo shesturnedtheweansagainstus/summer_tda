@@ -9,29 +9,29 @@ import warnings
 import gurobipy             as gp
 from gurobipy               import GRB
 import matplotlib.pyplot    as plt
+from kneed import KneeLocator
 
 warnings.filterwarnings("ignore")
 
-def naive_solve(x, beta, sigmas, alpha):
-        """
-        Provides the function to solve for 'naive' normal 
-        coordinates.
-        Parameters
-        ----------
-        x : float
-            Value of lambda to solve for.
-        beta : (self.dim,) np.array
-            Represents U^Tb.
-        sigmas : (self.dim,) np.array
-            Array of A's singular values.
-        alpha : float
-            Represents ||q-b||.
-        """
-        sigmas_squared = sigmas ** 2
-        beta_squared = beta ** 2
-        denom = (sigmas_squared+x)**2
-        out = np.sum(beta_squared * sigmas_squared * (1/denom))
-        return out - alpha ** 2
+def local_pca_elbow(pointcloud, max_components, S):
+    """
+    Applies PCA to local pointclouds and recover local dimension finding elbows in the function of recovered variances
+    """
+
+    if len(pointcloud) == 1:
+        return 1
+    
+    #pca = PCA(n_components=max_components)
+    pca = PCA()
+    _ = pca.fit(pointcloud)
+    vs = pca.explained_variance_ratio_
+    
+    kneedle = KneeLocator([i for i in range(len(vs))], vs, S=S, curve='convex', direction='decreasing')
+    elbow = kneedle.elbow
+    dim = elbow + 1 if elbow!=None else 0
+    
+    return dim
+
 
 class Simplex:
     """
@@ -184,7 +184,7 @@ class Simplex:
 
         return dims, vars
 
-    def build_simplex(self, pointcloud, k=10, threshold_var=0.08, edge_sen=1):
+    def build_simplex(self, pointcloud, max_components=5, S=0.1, k=10, threshold_var=0.08, edge_sen=1):
         """
         Computes the edges of our simplex and the GUDHI simplex tree.
         Parameters
@@ -212,10 +212,14 @@ class Simplex:
         dims_vars = [self.find_safe_edges(i, visible_edges[i][0], visible_edges[i][1], threshold_var, edge_sen) for i in range(n)]
         self.edges = [np.where(self.edge_matrix[i]!=0)[0] for i in range(n)]  # ensures can see all edges to i
 
+        max_components = min(max_components, len(pointcloud[0]))
+        local_dims = [local_pca_elbow(pointcloud[edges], max_components, S) for edges in self.edges]
+        self.dim = np.max(local_dims)  # check
+
         self.edge_matrix = csr_matrix(self.edge_matrix)
 
-        self.simplex.expansion(1000)  # likely max needed
-        self.dim = self.simplex.dimension()
+        #self.simplex.expansion(1000)  # likely max needed
+        #self.dim = self.simplex.dimension()
 
         # for testing (TODO: convert with logging)
         self.dims = [np.asarray(dims_vars[i][0]) for i in range(n)]
@@ -228,9 +232,7 @@ class Simplex:
         """
         if self.edges == None:
             return False
-        
-        self.dim=2
-        
+                
         n = len(self.pointcloud)
         self.coords = np.zeros([n, self.dim])
         computed_points = np.full(n, False)  # tracks which coordinates has been computed
@@ -272,11 +274,10 @@ class Simplex:
 
                 # we add the indexes of computed points connected to the c_i which are not already in the list and are not b
 
-                if len(computed_points_b) < self.dim:
+                if len(computed_points_b) < self.dim:  # TODO change how many points we take?
                     extra_computed_points = [j for i in computed_points_b for j in self.edges[i] if computed_points[j] and j not in computed_points_b and j!= pred]
                     extra_computed_points_idx = np.argsort(dist_matrix[idx, extra_computed_points])
-                    o = self.dim-len(computed_points_b)
-                    computed_points_b += list(np.asarray(extra_computed_points)[extra_computed_points_idx[:o]])
+                    computed_points_b += list(np.asarray(extra_computed_points)[extra_computed_points_idx[:self.dim-len(computed_points_b)]])
 
                 #computed_points_b += [j for i in computed_points_b for j in self.edges[i] if computed_points[j] and j not in computed_points_b and j!= pred]
                 k = len(computed_points_b)

@@ -20,6 +20,41 @@ warnings.filterwarnings("ignore")
 Diagnostics for testing the algorithm with noise
 """
 
+n = 2000
+
+# 2-plane
+pointx = np.random.uniform(size=[n, 1])
+pointy = np.random.uniform(size=[n, 1])
+point = np.hstack([pointx, pointy, np.zeros([len(pointx), 1])])
+pointn = point + np.random.normal(scale=0.05, size=point.shape)
+point_c = point[:, 0]
+point_cn = pointn[:, 0]
+point_data = [point, pointn, point_c, point_cn]
+
+# swiss roll
+swiss, swiss_c = ds.make_swiss_roll(n_samples=n, random_state=0)
+swissn, swiss_cn = ds.make_swiss_roll(n_samples=n, noise=0.2, random_state=0)
+swiss_data = [swiss, swissn, swiss_c, swiss_cn]  # edge_sen:0.8 ?
+
+# semi-2-sphere
+sphere = tadasets.dsphere(n=n, d=2)
+sphere = sphere[sphere[:, 2]>=0]
+spheren = tadasets.dsphere(n=n, d=2, noise=0.05)
+spheren = spheren[spheren[:, 2]>=0]
+sphere_data = [sphere, spheren, sphere[:, 0], spheren[:, 0]]
+
+# 2-torus
+torus = tadasets.torus(n=n)
+torusn = tadasets.torus(n=n, noise=0.2)
+torus_c = torus[:, 0]
+torus_cn = torusn[:, 0]
+torus_data = [torus, torusn, torus_c, torus_cn]
+
+# s-curve
+s_curve, s_curve_c = ds.make_s_curve(n_samples=n, random_state=1)
+s_curven, s_curve_cn = ds.make_s_curve(n_samples=n, noise=0.1, random_state=1)
+s_curve_data = [s_curve, s_curven, s_curve_c, s_curve_cn]
+
 def test_noise(dataset, noise_dataset, c, cn, save=False, **kwargs):
     """
     
@@ -117,43 +152,8 @@ if __name__ == '__main__':
         Edge detection
 
     """
-
-    n = 2000
     
-    params = {'k':10, 'threshold_var':0.08, 'edge_sen':0.5}
-
-    # 2-plane
-    pointx = np.random.uniform(size=[n, 1])
-    pointy = np.random.uniform(size=[n, 1])
-    point = np.hstack([pointx, pointy, np.zeros([len(pointx), 1])])
-    pointn = point + np.random.normal(scale=0.05, size=point.shape)
-    point_c = point[:, 0]
-    point_cn = pointn[:, 0]
-    point_data = [point, pointn, point_c, point_cn]
-
-    # swiss roll
-    swiss, swiss_c = ds.make_swiss_roll(n_samples=n, random_state=0)
-    swissn, swiss_cn = ds.make_swiss_roll(n_samples=n, noise=0.2, random_state=0)
-    swiss_data = [swiss, swissn, swiss_c, swiss_cn]  # edge_sen:0.8 ?
-
-    # semi-2-sphere
-    sphere = tadasets.dsphere(n=n, d=2)
-    sphere = sphere[sphere[:, 2]>=0]
-    spheren = tadasets.dsphere(n=n, d=2, noise=0.05)
-    spheren = spheren[spheren[:, 2]>=0]
-    sphere_data = [sphere, spheren, sphere[:, 0], spheren[:, 0]]
-
-    # 2-torus
-    torus = tadasets.torus(n=n)
-    torusn = tadasets.torus(n=n, noise=0.2)
-    torus_c = torus[:, 0]
-    torus_cn = torusn[:, 0]
-    torus_data = [torus, torusn, torus_c, torus_cn]
-
-    # s-curve
-    s_curve, s_curve_c = ds.make_s_curve(n_samples=n, random_state=1)
-    s_curven, s_curve_cn = ds.make_s_curve(n_samples=n, noise=0.1, random_state=1)
-    s_curve_data = [s_curve, s_curven, s_curve_c, s_curve_cn]
+    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.08, 'edge_sen':0.5}
 
     #test_noise(*point_data, save='point_data_1', **params)
     #test_noise(*s_curve_data, **params)
