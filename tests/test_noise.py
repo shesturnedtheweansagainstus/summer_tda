@@ -32,8 +32,8 @@ point_cn = pointn[:, 0]
 point_data = [point, pointn, point_c, point_cn]
 
 # swiss roll
-swiss, swiss_c = ds.make_swiss_roll(n_samples=n, random_state=0)
-swissn, swiss_cn = ds.make_swiss_roll(n_samples=n, noise=0.2, random_state=0)
+swiss, swiss_c = ds.make_swiss_roll(n_samples=n)
+swissn, swiss_cn = ds.make_swiss_roll(n_samples=n, noise=0.1)
 swiss_data = [swiss, swissn, swiss_c, swiss_cn]  # edge_sen:0.8 ?
 
 # semi-2-sphere
@@ -52,7 +52,7 @@ torus_data = [torus, torusn, torus_c, torus_cn]
 
 # s-curve
 s_curve, s_curve_c = ds.make_s_curve(n_samples=n, random_state=1)
-s_curven, s_curve_cn = ds.make_s_curve(n_samples=n, noise=0.1, random_state=1)
+s_curven, s_curve_cn = ds.make_s_curve(n_samples=n, noise=0.05)
 s_curve_data = [s_curve, s_curven, s_curve_c, s_curve_cn]
 
 def test_noise(dataset, noise_dataset, c, cn, save=False, **kwargs):
@@ -111,13 +111,12 @@ def compare_normal_coords(dataset, c, save=False, **kwargs):
 
     S1 = rml.Simplex()
     S1.build_simplex(dataset, **kwargs)
-
-    print(S0.dim)
     
-    p_idx, _ = S0.normal_coords()
-    p_idx, _ = S1.normal_coords_new()
+    p_idx, _ = S0.old_normal_coords(**kwargs)
+    p_idx, _ = S1.normal_coords(**kwargs)
 
     fig = plt.figure(figsize=(30, 30))
+    fig.suptitle(", ".join([i+"="+str(kwargs[i]) for i in kwargs.keys()]) + f', dim={S0.dim}, noise_dim={S1.dim}, n={len(dataset)}')
 
     ax1 = fig.add_subplot(1, 3, 1, projection='3d')
     ax2 = fig.add_subplot(1, 3, 2)
@@ -153,14 +152,12 @@ if __name__ == '__main__':
 
     """
     
-    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.08, 'edge_sen':0.5}
+    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.08, 'edge_sen':2, 'k0':2}
 
     #test_noise(*point_data, save='point_data_1', **params)
     #test_noise(*s_curve_data, **params)
-    compare_normal_coords(s_curven, s_curve_cn, save=False, **params)
+    compare_normal_coords(s_curve, s_curve_c, save=False, **params)
+    #compare_normal_coords(s_curven, s_curve_cn, save=False, **params)
+    #compare_normal_coords(swissn, swiss_cn, save=False, **params)
+    #compare_normal_coords(swiss, swiss_c, save=False, **params)
 
-    """
-    
-    PROBLEM WITH DIMENSION WITH NOISE
-    
-    """

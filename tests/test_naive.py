@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore")
 Diagnostics for testing the naive algorithm
 """
 
-n_points = 2500
+n_points = 2000
 
 # section of a 2-D uniform plane in R^3 with 900 points
 x = np.linspace(-1, 1, 30)
@@ -32,10 +32,10 @@ pointy = np.random.uniform(size=[n_points, 1])
 point = np.hstack([pointx, pointy, np.zeros([len(pointx), 1])])
 
 # swiss roll with color map
-swiss, swiss_c = ds.make_swiss_roll(n_samples=n_points, random_state=0)
+swiss, swiss_c = ds.make_swiss_roll(n_samples=n_points)
 
 # noisy swiss
-swissn, swiss_cn = ds.make_swiss_roll(n_samples=n_points, noise=0.2, random_state=0)
+swissn, swiss_cn = ds.make_swiss_roll(n_samples=n_points, noise=0.1)
 
 # swiss roll with hole (and color map)
 #swiss_hole, swiss_hole_c = ds.make_swiss_roll(n_samples=n_points, random_state=0, hole=True)
@@ -133,13 +133,15 @@ def test_normal_coords(dataset, c, **kwargs):
     """
     
     """
+
     S = rml.Simplex()
     S.build_simplex(dataset, **kwargs)
     
-    p_idx, _ = S.normal_coords()
+    p_idx, _ = S.normal_coords(**kwargs)
+    #p_idx, _ = S.old_normal_coords()
 
     fig = plt.figure(figsize=(20, 10))
-    fig.suptitle(", ".join([i+"="+str(kwargs[i]) for i in kwargs.keys()]) + f', dim={S.dim}')
+    fig.suptitle(", ".join([i+"="+str(kwargs[i]) for i in kwargs.keys()]) + f', dim={S.dim}, n={len(dataset)}')
 
     ax1 = fig.add_subplot(1, 2, 1, projection='3d')
     ax2 = fig.add_subplot(1, 2, 2)
@@ -213,8 +215,8 @@ if __name__ == '__main__':
     #dataset = [point, uni_point, swiss, sphere1, sphere2, sphere3, sphere4]
     #dataset = [point, point[:, 0]]
     #dataset = [sphere1, sphere1[:, 0]]
-    #dataset = [sphere4]
-    dataset = [sphere2, sphere2[:, 0]]
+    dataset = [sphere4, sphere4[:, 0]]
+    #dataset = [sphere2, sphere2[:, 0]]
     #dataset = [swiss, swiss_c]
     #dataset = [swissn, swiss_cn]
     #dataset = [s_curven, s_curve_cn]
@@ -225,7 +227,7 @@ if __name__ == '__main__':
 
     datasets = [dataset]
 
-    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.08, 'edge_sen':1}
+    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.08, 'edge_sen':2.4, 'k0':5}  # change edge sen
 
     for dataset in datasets:
         #test_normal_coords_edges(dataset, dataset[:, 0], k=10, threshold_var=0.08, edge_sen=1)
