@@ -10,6 +10,8 @@ import gurobipy             as gp
 from gurobipy               import GRB
 import matplotlib.pyplot    as plt
 from kneed import KneeLocator
+from scipy.spatial import distance_matrix
+from ripser import Rips
 
 warnings.filterwarnings("ignore")
 
@@ -32,6 +34,59 @@ def local_pca_elbow(pointcloud, max_components, S):
     
     return dim
 
+def local_neighborhood(data, scale):
+    '''
+    Computes an annular neighborhood for every point in the point cloud.
+    
+    data: array describing the point cloud
+    scale: list [k1, k2] with k1, k2 integers describing the number of nearest neighbors that will comprise the annulus
+    '''
+    D = distance_matrix(data, data)
+    n = scale[1]-scale[0]
+    local_neigh = np.ndarray(shape=(len(D),n), dtype=int, order='F')
+    radius = np.ndarray(shape=(len(D),2), dtype=float, order='F')
+    for i in range(len(D)):
+        local_neigh[i] = np.argsort(D[i])[scale[0]:scale[1]] # the annulus neighborhood of point i in data
+    D.sort()
+    for i in range(len(D)):
+        radius[i] = [D[i][scale[0]], D[i][scale[1]]] # the pair [r1,r2] of radii associated to the annulus neighborhood
+    return local_neigh, radius 
+
+def compute_local_persistence(data, scale, d):
+    '''
+    Classify every point in the point cloud depending its local homology at degree d-1
+    
+    data: array describing the point cloud
+    scale: list [k1, k2] with k1, k2 integers describing the number of nearest neighbors that will comprise the annulus
+    d: the estimated intrinsic dimension of the point cloud
+    '''
+    k1 = scale[0]
+    k2 = scale[1]
+    
+    local_neigh, radius = local_neighborhood(data, [k1, k2])
+    
+    rips = Rips(maxdim = d-1)
+    mask = []
+    for i in range(len(data)):
+        dgm = rips.fit_transform(data[local_neigh[i]])
+        
+        # here we only focus on betti d-1
+
+        lifetime = dgm[d-1][:,1]-dgm[d-1][:,0]
+
+        r1 = radius[i][0]
+        r2 = radius[i][1]
+            
+        N = np.where(lifetime>r2-r1)[0]
+
+        if len(N)==0:
+            mask.append(0) # boundary
+        elif len(N)==1:
+            mask.append(1) # regular point
+        else:
+            mask.append(2) # singular point
+
+    return np.array(mask)
 
 class Simplex:
     """
@@ -240,7 +295,7 @@ class Simplex:
         edge = np.full(n, False)  # tracks edge points
 
         # find our base point for T_pM
-        dist_matrix, predecessors = dijkstra(self.edge_matrix, return_predecessors=True)  
+        dist_matrix, predecessors = dijkstra(self.edge_matrix, return_predecessors=True) 
         p_idx = np.argmin(np.amax(dist_matrix, axis=1))  # assumes connected
         p = self.pointcloud[p_idx] 
         computed_points[p_idx] = True
@@ -409,3 +464,19 @@ class Simplex:
                 computed_points[idx] = True
 
         return p_idx, edge
+
+    def compute_boundary(self):
+        """
+        
+        """
+
+        mask = compute_local_persistence(self.coords, [40, 80], self.dim)
+        dist_matrix, predecessors = dijkstra(self.edge_matrix, return_predecessors=True) 
+        boundary_points = np.where(mask==0)[0]
+        p_idx = boundary_points[0]
+        p_dist = dist_matrix[p_idx, boundary_points]
+        return boundary_points, p_dist
+
+
+
+        
