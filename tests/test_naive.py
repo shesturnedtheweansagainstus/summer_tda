@@ -137,7 +137,8 @@ def test_normal_coords(dataset, c, **kwargs):
     S = rml.Simplex()
     S.build_simplex(dataset, **kwargs)
     
-    p_idx, _ = S.normal_coords(**kwargs)
+    #p_idx, _ = S.normal_coords(**kwargs)
+    p_idx, _ = S.new_normal_coords(**kwargs)
     #p_idx, _ = S.old_normal_coords()
 
     fig = plt.figure(figsize=(20, 10))
@@ -181,6 +182,7 @@ def test_boundary(dataset, c, **kwargs):
     S.build_simplex(dataset, **kwargs)
     
     p_idx, _ = S.normal_coords()
+    b_params = {'k':10, 'threshold_var':0.08, 'edge_sen':1} 
     boundary_points, p_dist = S.compute_boundary()
 
     fig = plt.figure(figsize=(20, 10))
@@ -188,6 +190,7 @@ def test_boundary(dataset, c, **kwargs):
 
     ax1 = fig.add_subplot(1, 2, 1, projection='3d')
     ax2 = fig.add_subplot(1, 2, 2)
+    #ax3 = fig.add_subplot(1, 3, 3)
 
     ax1.scatter3D(dataset[:, 0], dataset[:, 1], dataset[:, 2], c=c, alpha=0.1) 
     ax1.scatter3D(dataset[boundary_points, 0], dataset[boundary_points, 1], dataset[boundary_points, 2], c=p_dist, cmap='RdPu')
@@ -199,6 +202,12 @@ def test_boundary(dataset, c, **kwargs):
 
     ax2.scatter(S.coords[:, 0], S.coords[:, 1], c=c, alpha=0.2)
     ax2.scatter(S.coords[boundary_points, 0], S.coords[boundary_points, 1], c=p_dist, cmap='RdPu')
+
+    #ax3.scatter(S_b.pointcloud[:, 0], S_b.pointcloud[:, 1])
+
+    #for i in range(len(S_b.pointcloud)):
+    #    for k in S_b.edges[i]:
+    #        ax3.plot([S_b.pointcloud[i][0], S_b.pointcloud[k][0]],[S_b.pointcloud[i][1], S_b.pointcloud[k][1]], color='black', alpha=0.1)
 
     plt.show()
 
@@ -215,8 +224,8 @@ if __name__ == '__main__':
     #dataset = [point, uni_point, swiss, sphere1, sphere2, sphere3, sphere4]
     #dataset = [point, point[:, 0]]
     #dataset = [sphere1, sphere1[:, 0]]
-    dataset = [sphere4, sphere4[:, 0]]
-    #dataset = [sphere2, sphere2[:, 0]]
+    #dataset = [sphere4, sphere4[:, 0]]
+    dataset = [sphere2, sphere2[:, 0]]
     #dataset = [swiss, swiss_c]
     #dataset = [swissn, swiss_cn]
     #dataset = [s_curven, s_curve_cn]
@@ -227,13 +236,13 @@ if __name__ == '__main__':
 
     datasets = [dataset]
 
-    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.08, 'edge_sen':2.4, 'k0':5}  # change edge sen
+    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.05, 'edge_sen':1, 'k0':10, 'beta':0.5}  # change edge sen
 
     for dataset in datasets:
         #test_normal_coords_edges(dataset, dataset[:, 0], k=10, threshold_var=0.08, edge_sen=1)
-        #test_normal_coords(*dataset, **params)
-        test_boundary(*dataset, **params)
+        test_normal_coords(*dataset, **params)
+        #test_boundary(*dataset, **params)
         pass
-    
+
 
     #test_3_sphere(n=3000)

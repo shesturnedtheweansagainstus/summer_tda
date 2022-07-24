@@ -1,3 +1,4 @@
+import enum
 from scipy.optimize         import newton
 from sklearn.neighbors      import KDTree
 from scipy.sparse           import csr_matrix
@@ -424,15 +425,17 @@ class Simplex:
             else:
                 q = self.pointcloud[idx]
                 pred = predecessors[p_idx, idx]  # (index of) point before idx on the shortest path from p to idx ! not -9999
-                computed_points_b = [i for i in self.edges[pred] if computed_points[i]]
+
+                computed_points_b_c = [i for i in self.edges[pred] if computed_points[i]]
 
                 # we add the indexes of computed points connected to the c_i which are not already in the list and are not b
 
-                if len(computed_points_b) < self.dim+k0:  # TODO change how many points we take?
-                    extra_computed_points = [j for i in computed_points_b for j in self.edges[i] if computed_points[j] and j not in computed_points_b and j!= pred]
+                if len(computed_points_b_c) < self.dim+k0:  # TODO change how many points we take?
+                    extra_computed_points = [j for i in computed_points_b_c for j in self.edges[i] if computed_points[j] and j not in computed_points_b_c and j!= pred]
                     extra_computed_points_idx = np.argsort(dist_matrix[idx, extra_computed_points])
-                    computed_points_b += list(np.asarray(extra_computed_points)[extra_computed_points_idx[:k0+self.dim-len(computed_points_b)]])
+                    computed_points_b_d = list(np.asarray(extra_computed_points)[extra_computed_points_idx[:k0+self.dim-len(computed_points_b_c)]])
 
+                computed_points_b = computed_points_b_c + computed_points_b_d
                 k = len(computed_points_b)
 
                 b = self.pointcloud[pred]
@@ -456,7 +459,7 @@ class Simplex:
                 Q = A.T @ A
                 c = -2 * y.T @ A
 
-                obj = x @ Q @ x + c @ x + y.T @ y
+                obj = x @ Q @ x + c @ x + y.T @ y 
                 m.setObjective(obj, GRB.MINIMIZE)
                 m.addConstr(x@x == alpha**2, name="c")
                 m.optimize()
@@ -466,7 +469,7 @@ class Simplex:
 
         return p_idx, edge
 
-    def new_normal_coords(self, k0=0, **kwargs):
+    def new_normal_coords(self, k0=0, beta=1, **kwargs):
         """
         Computes the Riemannian normal coordinates from 
         the 'naive' algorithm.
@@ -511,33 +514,23 @@ class Simplex:
             else:
                 q = self.pointcloud[idx]
                 pred = predecessors[p_idx, idx]  # (index of) point before idx on the shortest path from p to idx ! not -9999
-                b = self.pointcloud[pred]
-                b_prime = self.coords[pred]
-                alpha = np.linalg.norm(q-b)  # ||q-b||
 
-                computed_points_b = [i for i in self.edges[pred] if computed_points[i]]
+                computed_points_b_c = [i for i in self.edges[pred] if computed_points[i]]
 
                 # we add the indexes of computed points connected to the c_i which are not already in the list and are not b
 
-                if len(computed_points_b) < self.dim:  # TODO change how many points we take?
-                    extra_computed_points = [(j,i) for i in computed_points_b for j in self.edges[i] if computed_points[j] and j not in computed_points_b and j!= pred]
-                    extra_computed_points_idx = np.argsort(dist_matrix[idx, [i[0] for i in extra_computed_points]])
-                    extra_computed_points = list(np.asarray(extra_computed_points)[extra_computed_points_idx[:k0+self.dim-len(computed_points_b)]])
-                    computed_points_b += [i[0] for i in extra_computed_points]
+                if len(computed_points_b_c) < self.dim+k0:  # TODO change how many points we take?
+                    extra_computed_points = [j for i in computed_points_b_c for j in self.edges[i] if computed_points[j] and j not in computed_points_b_c and j!= pred]
+                    extra_computed_points_idx = np.argsort(dist_matrix[idx, extra_computed_points])
+                    computed_points_b_d = list(np.asarray(extra_computed_points)[extra_computed_points_idx[:k0+self.dim-len(computed_points_b_c)]])
 
-                    ys = []
-                    As = []
-
-                    for i in extra_computed_points:
-                        point_idx = i[0]
-                        group_idx = i[1]
-                        y = self.pointcloud[point_idx] - self.pointcloud[group_idx]
-                        #y /= np.linalg.norm(y) * 
-
-                    
-
-
+                computed_points_b = computed_points_b_c + computed_points_b_d
                 k = len(computed_points_b)
+
+                b = self.pointcloud[pred]
+                b_prime = self.coords[pred]
+
+                alpha = np.linalg.norm(q-b)  # ||q-b||
 
                 y = self.pointcloud[computed_points_b] - b  # rows are c_i-b
                 y /= np.linalg.norm(y, axis=1).reshape(k, 1) * alpha
@@ -545,10 +538,42 @@ class Simplex:
                 y = np.sum(y, axis=1)  # 1-D np.array
 
                 A = self.coords[computed_points_b] - b_prime  # (k, dim) then U (with full_matrices=False) gives (k, dim) for U and U^Tb has (dim,)
-                A /= np.linalg.norm(A, axis=1).reshape(k, 1) * alpha
+                A /= np.linalg.norm(A, axis=1).reshape(k, 1) * alpha  
+                
+                m = gp.Model()
+                m.setParam('OutputFlag', 0)
+                m.setParam(GRB.Param.NonConvex, 2)
+                x = m.addMVar(shape=int(self.dim), lb=float('-inf'))
 
-                x = find_coord(A, y, alpha, self.dim)
-                self.coords[idx] = x + b_prime                    
+                Q = A.T @ A
+                c = -2 * y.T @ A
+
+                obj1 = x @ Q @ x + c @ x + y.T @ y 
+
+                #obj2 = 0
+                #for i in computed_points_b_c:
+                dist_1 = dist_matrix[idx, computed_points_b_c[0]]
+                c_prime_1 = self.coords[computed_points_b_c[0]]
+                d_1 = b_prime - c_prime_1
+
+                if len(computed_points_b_c) == 2:
+                    dist_2 = dist_matrix[idx, computed_points_b_c[1]]
+                    c_prime_2 = self.coords[computed_points_b_c[1]]
+                    d_2 = b_prime - c_prime_2
+
+                    a = (x@x + 2 * d_1 @ x + d_1@d_1 - dist_1**2)
+                    b = (x@x + 2 * d_2 @ x + d_2@d_2 - dist_2**2)
+                    obj2 = a + b 
+                else:
+                    a = (x@x + 2 * d_1 @ x + d_1@d_1 - dist_1**2)
+                    obj2 = a # minimise distance of q' to c_i'
+
+                obj = beta*obj1 + (1-beta)*obj2
+                m.setObjective(obj, GRB.MINIMIZE)
+                m.addConstr(x@x == alpha**2, name="c")
+                m.optimize()
+                self.coords[idx] = x.X + b_prime                    
+                        
                 computed_points[idx] = True
 
         return p_idx, edge
@@ -662,20 +687,72 @@ class Simplex:
         p_dist = dist_matrix[p_idx, boundary_points]
         return boundary_points, p_dist
 
-def compute_boundary(S):
+def old_compute_boundary(S0, **kwargs):
     """
     
     """
-    mask = compute_local_persistence(S.coords, [40, 80], S.dim)  # test more parameters
-    dist_matrix, predecessors = dijkstra(S.edge_matrix, return_predecessors=True) 
+    mask = compute_local_persistence(S0.coords, [40, 80], S0.dim)  # test more parameters
+    dist_matrix, predecessors = dijkstra(S0.edge_matrix, return_predecessors=True) 
     boundary_points = np.where(mask==0)[0]
+
     p_idx = boundary_points[0]
     p_dist = dist_matrix[p_idx, boundary_points]
 
     S_b = Simplex()
-    S_b.
+    S_b.build_simplex(S0.coords[boundary_points], **kwargs)
 
-    return boundary_points, p_dist
+    b_idxs = []
 
+    for i, edges in enumerate(S_b.edges):
+        i_weight = np.sum(S_b.edge_matrix[i])  # normalize?
+        j_weights = [np.sum(S_b.edge_matrix[j]) for j in edges]
+        if np.all(i_weight > np.asarray(j_weights)):
+            continue
+        else:
+            b_idxs.append(i)
 
-        
+    S_c = Simplex()
+    S_c.build_simplex(S_b.pointcloud[b_idxs], **kwargs)
+
+    return boundary_points, p_dist, S_c
+
+def compute_boundary(S0, **kwargs):
+    """
+    
+    """
+    mask = compute_local_persistence(S0.coords, [40, 80], S0.dim)  # test more parameters
+    dist_matrix, predecessors = dijkstra(S0.edge_matrix, return_predecessors=True) 
+    boundary_points = np.where(mask==0)[0]
+
+    p_idx = boundary_points[0]
+    p_dist = dist_matrix[p_idx, boundary_points]
+
+    S_b = Simplex()
+    S_b.build_simplex(S0.coords, **kwargs)
+
+    fig = plt.figure(figsize=(20, 10))
+
+    ax1 = fig.add_subplot(1, 1, 1)
+    ax1.scatter(S_b.pointcloud[:, 0], S_b.pointcloud[:, 1])
+    ax1.scatter(S_b.pointcloud[boundary_points, 0], S_b.pointcloud[boundary_points, 1], color='r')
+
+    for i in range(len(S_b.pointcloud)):
+        for k in S_b.edges[i]:
+            ax1.plot([S_b.pointcloud[i][0], S_b.pointcloud[k][0]],[S_b.pointcloud[i][1], S_b.pointcloud[k][1]], color='black', alpha=0.1)
+
+    b_idxs = []
+
+    for i, edges in enumerate(np.asarray(S_b.edges)[boundary_points]):
+        if np.argmin(S_b.edge_matrix[i, edges]) in boundary_points:
+            b_idxs.append(i)
+        else:
+            continue
+    
+    S_c = Simplex()
+    S_c.build_simplex(S0.coords[boundary_points[b_idxs]], **kwargs)
+
+    return boundary_points, p_dist, S_c     
+
+if __name__ == '__main__':
+    pass
+
