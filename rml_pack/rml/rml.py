@@ -1,4 +1,3 @@
-import enum
 from scipy.optimize         import newton
 from sklearn.neighbors      import KDTree
 from scipy.sparse           import csr_matrix
@@ -13,10 +12,14 @@ import matplotlib.pyplot    as plt
 from kneed import KneeLocator
 from scipy.spatial import distance_matrix
 from ripser import Rips
+from sklearn.preprocessing  import PolynomialFeatures
 
 warnings.filterwarnings("ignore")
 
 def find_coord(A, y, alpha, dim):
+    """
+    
+    """
     m = gp.Model()
     m.setParam('OutputFlag', 0)
     m.setParam(GRB.Param.NonConvex, 2)
@@ -104,6 +107,27 @@ def compute_local_persistence(data, scale, d):
             mask.append(2) # singular point
 
     return np.array(mask)
+
+def surface_to_matrix(surface, d):
+    """
+    Parameters
+    ----------
+    surface : 1-D np.array
+        Expresses the coefficients of the quadratic surface
+        in PolynomialFeatures convention
+    
+    Returns
+    -------
+    """
+    c = surface[0]
+    b = surface[1:1+d]
+    A = np.zeros([d, d])
+    A[np.triu_indices(d)] = surface 
+    A[np.triu_indices(d, k=1)] /= 2
+    A[np.tril_indices(d, k=-1)] = A[np.triu_indices(d, k=1)]
+
+    return A, b, c
+        
 
 class Simplex:
     """
@@ -587,40 +611,23 @@ class Simplex:
             return False
 
         n = len(self.pointcloud)
+        k0 = (self.dim+2) * (self.dim+1) / 2
         self.coords = np.zeros([n, self.dim])
         computed_points = np.full(n, False)  # tracks which coordinates has been computed
 
-        edge = np.full(n, False)  # tracks edge points
-
         # find our base point for T_pM
         dist_matrix, predecessors = dijkstra(self.edge_matrix, return_predecessors=True)  
-        p_idx = np.argmin(np.amax(dist_matrix, axis=1))  # assumes connected
+        p_idx = np.argmin(np.amax(dist_matrix, axis=1)) 
         p = self.pointcloud[p_idx] 
         computed_points[p_idx] = True
 
-        """
-        # set up tangent basis
-        tangent_inds = np.random.choice(self.edges[p_idx], size=self.dim, replace=False)
-        tangent_edges = np.transpose(self.pointcloud[tangent_inds] - p)  # problem if dim=1??  (dim, dim)
-        tangent_edges = np.linalg.qr(tangent_edges)[0]  # gives orthonormal basis for T_pM
-        
-        # compute normal coords for p's edge points
-        edge_points = np.transpose(self.pointcloud[self.edges[p_idx]] - p)
-        edge_scalar = np.linalg.norm(edge_points, axis=0)
-        edge_coords = np.linalg.lstsq(tangent_edges, edge_points)[0]
-        edge_coords = (edge_coords / np.linalg.norm(edge_coords, axis=0)) * edge_scalar
-        self.coords[self.edges[p_idx]] = np.transpose(edge_coords)
-        computed_points[self.edges[p_idx]] = True
-        """
-
+        # apply PCA to set up points in T_pM 
         pca = PCA(n_components=self.dim)
-        edge_coords = pca.fit_transform(self.pointcloud[self.edges[p_idx]] - p)
+        edge_coords = pca.fit_transform(self.pointcloud[self.edges[p_idx]] - p)  # ! number of points should be in [d+1, 2d]
         self.coords[self.edges[p_idx]] = edge_coords
         computed_points[self.edges[p_idx]] = True
 
-        edge[self.edges[p_idx]] = True
-
-        # then interate over all other points based off of increasing distance from p??
+        # then interate over all other points based off of increasing distance from p
         p_dist = dist_matrix[p_idx]
         sorted_inds = np.argsort(p_dist)
 
@@ -629,23 +636,29 @@ class Simplex:
                 continue
             else:
                 q = self.pointcloud[idx]
-                pred = predecessors[p_idx, idx]  # (index of) point before idx on the shortest path from p to idx ! not -9999
-                computed_points_b = [i for i in self.edges[pred] if computed_points[i]]
-
-                # we add the indexes of computed points connected to the c_i which are not already in the list and are not b
-                
-                # NOTE
-                if len(computed_points_b) < self.dim:
-                    extra_computed_points = [j for i in computed_points_b for j in self.edges[i] if computed_points[j] and j not in computed_points_b and j!= pred]
-                    extra_computed_points_idx = np.argsort(dist_matrix[idx, extra_computed_points])
-                    #print(extra_computed_points_idx)
-                    #print(computed_points_b)
-                    o = self.dim-len(computed_points_b)
-                    computed_points_b += list(np.asarray(extra_computed_points)[extra_computed_points_idx[:o]])
-                k = len(computed_points_b)  # should equal dim
-
+                pred = predecessors[p_idx, idx]  # (index of) point before idx on the shortest path from p to idx
                 b = self.pointcloud[pred]
                 b_prime = self.coords[pred]
+
+                computed_points_b = [i for i in self.edges[pred] if computed_points[i]]
+                k = len(computed_points_b)
+                
+                # add extra points from the neighbourhood of the c_i
+                if k < k0:
+                    extra_computed_points = [j for i in computed_points_b for j in self.edges[i] if computed_points[j] and j not in computed_points_b and j!= pred]
+                    extra_computed_points_idx = np.argsort(dist_matrix[pred, extra_computed_points])[:2+k0-k]  # take extra points?  argsort from pred not idx?
+                    computed_points_b += list(np.asarray(extra_computed_points)[extra_computed_points_idx])
+                    k = len(computed_points_b)
+
+                # fit a quadratic manifold by geodesic distance to p
+                computed_points_b_pca = pca.fit_transform(self.pointcloud[computed_points_b] - b)
+                geodesic_b = dist_matrix[p_idx, computed_points_b]
+                surface_poly = PolynomialFeatures()
+                surface_matrix = surface_poly.fit_transform(computed_points_b_pca)
+                surface = np.linalg.lstsq(surface_matrix, geodesic_b)
+                A0, b0, c0 = surface_to_matrix(surface, self.dim)
+                c0 -= dist_matrix[p_idx, pred]
+
 
                 alpha = np.linalg.norm(q-b)  # ||q-b||
 
@@ -657,23 +670,11 @@ class Simplex:
                 A = self.coords[computed_points_b] - b_prime  # (k, dim) then U (with full_matrices=False) gives (k, dim) for U and U^Tb has (dim,)
                 A /= np.linalg.norm(A, axis=1).reshape(k, 1) * alpha  
                 
-                m = gp.Model()
-                m.setParam('OutputFlag', 0)
-                m.setParam(GRB.Param.NonConvex, 2)
-                x = m.addMVar(shape=self.dim, lb=float('-inf'))
-
-                Q = A.T @ A
-                c = -2 * y.T @ A
-
-                obj = x @ Q @ x + c @ x + y.T @ y
-                m.setObjective(obj, GRB.MINIMIZE)
-                m.addConstr(x@x == alpha**2, name="c")
-                m.optimize()
-                self.coords[idx] = x.X + b_prime                    
-                        
+                normal_coord = find_coord(A, y, alpha, self.dim)
+                self.coords[idx] = normal_coord + b_prime                    
                 computed_points[idx] = True
 
-        return p_idx, edge
+        return p_idx
 
     def compute_boundary(self):
         """
