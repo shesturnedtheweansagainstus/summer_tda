@@ -138,8 +138,9 @@ def test_normal_coords(dataset, c, **kwargs):
     S.build_simplex(dataset, **kwargs)
     
     #p_idx, _ = S.normal_coords(**kwargs)
-    p_idx, _ = S.new_normal_coords(**kwargs)
+    #p_idx, _ = S.new_normal_coords(**kwargs)
     #p_idx, _ = S.old_normal_coords()
+    p_idx = S.normal_coords_pca(**kwargs)
 
     fig = plt.figure(figsize=(20, 10))
     fig.suptitle(", ".join([i+"="+str(kwargs[i]) for i in kwargs.keys()]) + f', dim={S.dim}, n={len(dataset)}')
@@ -222,10 +223,10 @@ if __name__ == '__main__':
     """
 
     #dataset = [point, uni_point, swiss, sphere1, sphere2, sphere3, sphere4]
-    #dataset = [point, point[:, 0]]
+    dataset = [point, point[:, 0]]
     #dataset = [sphere1, sphere1[:, 0]]
     #dataset = [sphere4, sphere4[:, 0]]
-    dataset = [sphere2, sphere2[:, 0]]
+    #dataset = [sphere2, sphere2[:, 0]]
     #dataset = [swiss, swiss_c]
     #dataset = [swissn, swiss_cn]
     #dataset = [s_curven, s_curve_cn]
