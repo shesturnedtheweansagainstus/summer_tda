@@ -588,11 +588,11 @@ class Simplex:
                     c_prime_2 = self.coords[computed_points_b_c[1]]
                     d_2 = b_prime - c_prime_2
 
-                    a = (x@x + 2 * d_1 @ x + d_1@d_1 - dist_1**2)
-                    b = (x@x + 2 * d_2 @ x + d_2@d_2 - dist_2**2)
+                    a = (x@x + 2 * d_1 @ x + d_1@d_1 - dist_1**2) ** 2
+                    b = (x@x + 2 * d_2 @ x + d_2@d_2 - dist_2**2) ** 2
                     obj2 = a + b 
                 else:
-                    a = (x@x + 2 * d_1 @ x + d_1@d_1 - dist_1**2)
+                    a = (x@x + 2 * d_1 @ x + d_1@d_1 - dist_1**2) ** 2
                     obj2 = a # minimise distance of q' to c_i'
 
                 obj = beta*obj1 + (1-beta)*obj2
@@ -760,6 +760,7 @@ class Simplex:
         p_idx = boundary_points[0]
         p_dist = dist_matrix[p_idx, boundary_points]
         return boundary_points, p_dist
+
 
 def old_compute_boundary(S0, **kwargs):
     """
