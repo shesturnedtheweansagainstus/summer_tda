@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore")
 Diagnostics for testing the naive algorithm
 """
 
-n_points = 2000
+n_points = 1500
 
 # section of a 2-D uniform plane in R^3 with 900 points
 x = np.linspace(-1, 1, 30)
@@ -137,10 +137,10 @@ def test_normal_coords(dataset, c, **kwargs):
     S = rml.Simplex()
     S.build_simplex(dataset, **kwargs)
     
-    #p_idx, _ = S.normal_coords(**kwargs)
+    p_idx, _ = S.normal_coords(**kwargs)
     #p_idx, _ = S.new_normal_coords(**kwargs)
     #p_idx, _ = S.old_normal_coords()
-    p_idx = S.normal_coords_pca(**kwargs)
+    #p_idx = S.normal_coords_pca(**kwargs)
 
     fig = plt.figure(figsize=(20, 10))
     fig.suptitle(", ".join([i+"="+str(kwargs[i]) for i in kwargs.keys()]) + f', dim={S.dim}, n={len(dataset)}')
@@ -148,7 +148,7 @@ def test_normal_coords(dataset, c, **kwargs):
     ax1 = fig.add_subplot(1, 2, 1, projection='3d')
     ax2 = fig.add_subplot(1, 2, 2)
 
-    ax1.scatter3D(dataset[:,0], dataset[:, 1], dataset[:, 2], c=c)  # grading by x
+    ax1.scatter3D(dataset[:,0], dataset[:, 1], dataset[:, 2], c=c) 
     ax1.scatter3D(dataset[p_idx,0], dataset[p_idx, 1], dataset[p_idx, 2], marker='>', color='g', s=100)
     for i in range(len(dataset)):
         for k in S.edges[i]:
@@ -223,11 +223,11 @@ if __name__ == '__main__':
     """
 
     #dataset = [point, uni_point, swiss, sphere1, sphere2, sphere3, sphere4]
-    dataset = [point, point[:, 0]]
+    #dataset = [point, point[:, 0]]
     #dataset = [sphere1, sphere1[:, 0]]
     #dataset = [sphere4, sphere4[:, 0]]
     #dataset = [sphere2, sphere2[:, 0]]
-    #dataset = [swiss, swiss_c]
+    dataset = [swiss, swiss_c]
     #dataset = [swissn, swiss_cn]
     #dataset = [s_curven, s_curve_cn]
     #dataset = [klein_data]
@@ -237,7 +237,7 @@ if __name__ == '__main__':
 
     datasets = [dataset]
 
-    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.05, 'edge_sen':1, 'k0':10, 'beta':0.5}  # change edge sen
+    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.05, 'edge_sen':1, 'k0':0}  # change edge sen
 
     for dataset in datasets:
         #test_normal_coords_edges(dataset, dataset[:, 0], k=10, threshold_var=0.08, edge_sen=1)
