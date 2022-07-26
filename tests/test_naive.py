@@ -60,6 +60,9 @@ cond = np.logical_and(sphere4[:, 0]>=-0.1, sphere4[:, 0]<=0.1)
 cond = np.logical_and(cond, sphere4[:, 1]>=0)
 sphere4 = sphere4[~cond]
 
+sphere5 = tadasets.dsphere(n=int(n_points*1.3))
+sphere5 = sphere5[sphere5[:, 2]>=-0.7]
+
 # klein bottle
 def klein(n=30, m=40, r=10, a=20):
     theta, phi = np.meshgrid(np.linspace(0, 2.*np.pi, n), np.linspace(0, 2.*np.pi, m))
@@ -137,7 +140,8 @@ def test_normal_coords(dataset, c, **kwargs):
     S = rml.Simplex()
     S.build_simplex(dataset, **kwargs)
     
-    p_idx, _ = S.normal_coords(**kwargs)
+    #p_idx, _ = S.normal_coords(**kwargs)
+    p_idx, _ = S.normal_coords_trade(**kwargs)
     #p_idx, _ = S.new_normal_coords(**kwargs)
     #p_idx, _ = S.old_normal_coords()
     #p_idx = S.normal_coords_pca(**kwargs)
@@ -224,10 +228,11 @@ if __name__ == '__main__':
 
     #dataset = [point, uni_point, swiss, sphere1, sphere2, sphere3, sphere4]
     #dataset = [point, point[:, 0]]
-    #dataset = [sphere1, sphere1[:, 0]]
+    dataset = [sphere1, sphere1[:, 0]]
     #dataset = [sphere4, sphere4[:, 0]]
     #dataset = [sphere2, sphere2[:, 0]]
-    dataset = [swiss, swiss_c]
+    #dataset = [sphere5, sphere5[:, 0]]
+    #dataset = [swiss, swiss_c]
     #dataset = [swissn, swiss_cn]
     #dataset = [s_curven, s_curve_cn]
     #dataset = [klein_data]
@@ -237,7 +242,7 @@ if __name__ == '__main__':
 
     datasets = [dataset]
 
-    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.05, 'edge_sen':1, 'k0':0}  # change edge sen
+    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.05, 'edge_sen':2, 'k0':10, 'beta':None}  # change edge sen
 
     for dataset in datasets:
         #test_normal_coords_edges(dataset, dataset[:, 0], k=10, threshold_var=0.08, edge_sen=1)

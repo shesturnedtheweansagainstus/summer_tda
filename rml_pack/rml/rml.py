@@ -1,3 +1,4 @@
+from itertools import count
 from scipy.optimize         import newton
 from sklearn.neighbors      import KDTree
 from scipy.sparse           import csr_matrix
@@ -502,7 +503,7 @@ class Simplex:
 
         return p_idx, edge
 
-    def normal_coords_trade(self, k0=0, **kwargs):
+    def normal_coords_trade(self, k0=0, beta=None, **kwargs):
         """
         Computes the Riemannian normal coordinates from 
         the 'naive' algorithm.
@@ -519,6 +520,7 @@ class Simplex:
         # find our base point for T_pM
         dist_matrix, predecessors = dijkstra(self.edge_matrix, return_predecessors=True) 
         p_idx = np.argmin(np.amax(dist_matrix, axis=1))  # assumes connected
+        geo_rad = np.max(dist_matrix[p_idx])
         p = self.pointcloud[p_idx] 
         computed_points[p_idx] = True
 
@@ -540,6 +542,9 @@ class Simplex:
         # then interate over all other points based off of increasing distance from p??
         p_dist = dist_matrix[p_idx]
         sorted_inds = np.argsort(p_dist)
+
+        count = 0
+        count1 = 0
 
         for idx in sorted_inds:
             if computed_points[idx]:
@@ -571,21 +576,68 @@ class Simplex:
 
                 A = self.coords[computed_points_b] - b_prime  # (k, dim) then U (with full_matrices=False) gives (k, dim) for U and U^Tb has (dim,)
                 A /= np.linalg.norm(A, axis=1).reshape(k, 1) * alpha  
-                
-                m = gp.Model()
-                m.setParam('OutputFlag', 0)
-                m.setParam(GRB.Param.NonConvex, 2)
-                x = m.addMVar(shape=int(self.dim), lb=float('-inf'))
-                Q = A.T @ A
-                c = -2 * y.T @ A
-                obj = x @ Q @ x + c @ x + y.T @ y
-                m.setObjective(obj, GRB.MINIMIZE)
-                m.addConstr(x@x == alpha**2, name="c")
-                m.optimize()
-                self.coords[idx] = x.X + b_prime                    
-                        
-                computed_points[idx] = True
 
+                if beta != None and dist_matrix[p_idx, idx] >= 0.5 * geo_rad:
+                    count1 += 1
+
+                    c_1 = self.pointcloud[computed_points_b[0]]
+                    c_1_prime = self.coords[computed_points_b[0]]
+
+                    m = gp.Model()
+                    m.setParam('OutputFlag', 0)
+                    m.setParam(GRB.Param.NonConvex, 2)
+                    x = m.addMVar(shape=int(self.dim), lb=float('-inf'))
+                    z = m.addMVar(shape=int(self.dim), lb=float('-inf'))
+
+                    Q = A.T @ A
+                    c = -2 * y.T @ A
+                    obj = x @ Q @ x + c @ x + y.T @ y
+
+                    m.setObjective(obj, GRB.MINIMIZE)
+
+                    c0 = m.addConstr(x@x == alpha**2, name="c0")
+                    c1 = m.addConstr(z == x+b_prime-c_1_prime, name="d0")
+                    d1 = m.addConstr(z@z == (q-c_1)@(q-c_1), name="d0")
+
+                    m.feasRelax(relaxobjtype=1, minrelax=True, vars=None, lbpen=None, ubpen=None, constrs=[c0, d1], rhspen=[50, 1])
+
+                    m.optimize()
+
+                    try:
+                        self.coords[idx] = x.X + b_prime
+                    except:
+                        count += 1
+                        if count == 5:
+                            return A, y, alpha, c_1, c_1_prime, q, b_prime
+
+                        m = gp.Model()
+                        m.setParam('OutputFlag', 0)
+                        m.setParam(GRB.Param.NonConvex, 2)
+                        x = m.addMVar(shape=int(self.dim), lb=float('-inf'))
+                        Q = A.T @ A
+                        c = -2 * y.T @ A
+                        obj = x @ Q @ x + c @ x + y.T @ y
+                        m.setObjective(obj, GRB.MINIMIZE)
+                        m.addConstr(x@x == alpha**2, name="c")
+                        m.optimize()
+                        self.coords[idx] = x.X + b_prime 
+                else:
+                    m = gp.Model()
+                    m.setParam('OutputFlag', 0)
+                    m.setParam(GRB.Param.NonConvex, 2)
+
+                    x = m.addMVar(shape=2, lb=float('-inf'))
+                    Q = A.T @ A
+                    c = -2 * y.T @ A
+                    obj = (x @ Q @ x + c @ x + y.T @ y)
+                    m.setObjective(obj, GRB.MINIMIZE)
+                    c0 = m.addConstr(x@x == alpha**2, name="c0")
+                    m.optimize()
+                    self.coords[idx] = x.X + b_prime 
+
+                computed_points[idx] = True
+        print(count1)
+        print(count)
         return p_idx, edge
 
     def new_normal_coords(self, k0=0, beta=1, **kwargs):
