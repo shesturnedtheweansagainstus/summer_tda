@@ -141,7 +141,7 @@ def test_normal_coords(dataset, c, **kwargs):
     S.build_simplex(dataset, **kwargs)
     
     #p_idx, _ = S.normal_coords(**kwargs)
-    p_idx, _ = S.normal_coords_trade(**kwargs)
+    _ = S.normal_coords_trade(**kwargs)
     #p_idx, _ = S.new_normal_coords(**kwargs)
     #p_idx, _ = S.old_normal_coords()
     #p_idx = S.normal_coords_pca(**kwargs)
@@ -153,7 +153,7 @@ def test_normal_coords(dataset, c, **kwargs):
     ax2 = fig.add_subplot(1, 2, 2)
 
     ax1.scatter3D(dataset[:,0], dataset[:, 1], dataset[:, 2], c=c) 
-    ax1.scatter3D(dataset[p_idx,0], dataset[p_idx, 1], dataset[p_idx, 2], marker='>', color='g', s=100)
+    #ax1.scatter3D(dataset[p_idx,0], dataset[p_idx, 1], dataset[p_idx, 2], marker='>', color='g', s=100)
     for i in range(len(dataset)):
         for k in S.edges[i]:
             ax1.plot3D([dataset[i][0], dataset[k][0]],[dataset[i][1], dataset[k][1]], [dataset[i][2], dataset[k][2]], color='black', alpha=0.1)
@@ -221,17 +221,19 @@ if __name__ == '__main__':
     """
     TODO:
 
-        Implement dimension estimation for noise - how sensitive ?
-        added k0 another parameter see swiss roll
+        Improve the boundary detection 
+        Investigate the parameters for beta - not scale invariant
+
+        Think how to implement a boundary representation
     
     """
 
     #dataset = [point, uni_point, swiss, sphere1, sphere2, sphere3, sphere4]
     #dataset = [point, point[:, 0]]
-    dataset = [sphere1, sphere1[:, 0]]
+    #dataset = [sphere1, sphere1[:, 0]]
     #dataset = [sphere4, sphere4[:, 0]]
     #dataset = [sphere2, sphere2[:, 0]]
-    #dataset = [sphere5, sphere5[:, 0]]
+    dataset = [sphere5, sphere5[:, 0]]
     #dataset = [swiss, swiss_c]
     #dataset = [swissn, swiss_cn]
     #dataset = [s_curven, s_curve_cn]
@@ -242,7 +244,7 @@ if __name__ == '__main__':
 
     datasets = [dataset]
 
-    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.05, 'edge_sen':2, 'k0':10, 'beta':None}  # change edge sen
+    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.05, 'edge_sen':2, 'k0':3, 'beta':[0.85, 100, 0.15, 0.15]}  # change edge sen
 
     for dataset in datasets:
         #test_normal_coords_edges(dataset, dataset[:, 0], k=10, threshold_var=0.08, edge_sen=1)

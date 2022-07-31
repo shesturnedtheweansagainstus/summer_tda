@@ -1,3 +1,4 @@
+from distutils import dist
 from itertools import count
 from scipy.optimize         import newton
 from sklearn.neighbors      import KDTree
@@ -19,6 +20,8 @@ import sympy                as sp
 from pymoo.algorithms.soo.nonconvex.ga import GA
 from pymoo.core.problem     import Problem
 from pymoo.optimize         import minimize
+from scipy.stats            import mode
+from scipy.spatial          import Delaunay
 
 warnings.filterwarnings("ignore")
 
@@ -324,6 +327,8 @@ class Simplex:
         max_components = min(max_components, len(pointcloud[0]))
         local_dims = [local_pca_elbow(pointcloud[edges], max_components, S) for edges in self.edges]
         self.dim = np.max(local_dims)  # check
+        #self.dim = int(np.median(local_dims[local_dims!=0]))
+        #self.dim = mode(local_dims[local_dims!=0])[0][0]
 
         self.edge_matrix = csr_matrix(self.edge_matrix)
 
@@ -553,6 +558,7 @@ class Simplex:
                 q = self.pointcloud[idx]
                 pred = predecessors[p_idx, idx]  # (index of) point before idx on the shortest path from p to idx ! not -9999
                 computed_points_b = [i for i in self.edges[pred] if computed_points[i]]
+                computed_points_b = list(np.asarray(computed_points_b)[np.argsort(dist_matrix[idx, computed_points_b])])  # order according to distance from idx
 
                 # we add the indexes of computed points connected to the c_i which are not already in the list and are not b
 
@@ -577,29 +583,41 @@ class Simplex:
                 A = self.coords[computed_points_b] - b_prime  # (k, dim) then U (with full_matrices=False) gives (k, dim) for U and U^Tb has (dim,)
                 A /= np.linalg.norm(A, axis=1).reshape(k, 1) * alpha  
 
-                if beta != None and dist_matrix[p_idx, idx] >= 0.5 * geo_rad:
+                if beta != None and dist_matrix[p_idx, idx] >= 0.6 * geo_rad:
                     count1 += 1
 
                     c_1 = self.pointcloud[computed_points_b[0]]
                     c_1_prime = self.coords[computed_points_b[0]]
+                    dist_1 = dist_matrix[idx, computed_points_b[0]]
+
+                    c_2 = self.pointcloud[computed_points_b[1]]
+                    c_2_prime = self.coords[computed_points_b[1]]
+                    dist_2 = dist_matrix[idx, computed_points_b[1]]
 
                     m = gp.Model()
                     m.setParam('OutputFlag', 0)
                     m.setParam(GRB.Param.NonConvex, 2)
+
                     x = m.addMVar(shape=int(self.dim), lb=float('-inf'))
-                    z = m.addMVar(shape=int(self.dim), lb=float('-inf'))
+
+                    z1 = m.addMVar(shape=int(self.dim), lb=float('-inf'))
+                    z2 = m.addMVar(shape=int(self.dim), lb=float('-inf'))
 
                     Q = A.T @ A
                     c = -2 * y.T @ A
-                    obj = x @ Q @ x + c @ x + y.T @ y
+                    obj = (x @ Q @ x + c @ x + y.T @ y) * beta[0]
 
                     m.setObjective(obj, GRB.MINIMIZE)
 
                     c0 = m.addConstr(x@x == alpha**2, name="c0")
-                    c1 = m.addConstr(z == x+b_prime-c_1_prime, name="d0")
-                    d1 = m.addConstr(z@z == (q-c_1)@(q-c_1), name="d0")
 
-                    m.feasRelax(relaxobjtype=1, minrelax=True, vars=None, lbpen=None, ubpen=None, constrs=[c0, d1], rhspen=[50, 1])
+                    _ = m.addConstr(z1 == x+b_prime-c_1_prime, name="d1")
+                    d1 = m.addConstr(z1@z1 == dist_1**2, name="d11")
+
+                    _ = m.addConstr(z2 == x+b_prime-c_2_prime, name="d2")
+                    d2 = m.addConstr(z2@z2 == dist_2**2, name="d22")
+
+                    m.feasRelax(relaxobjtype=1, minrelax=True, vars=None, lbpen=None, ubpen=None, constrs=[c0, d1, d2], rhspen=beta[1:])
 
                     m.optimize()
 
@@ -607,20 +625,41 @@ class Simplex:
                         self.coords[idx] = x.X + b_prime
                     except:
                         count += 1
+                        """
                         if count == 5:
-                            return A, y, alpha, c_1, c_1_prime, q, b_prime
+                            print(count1)
+                            print(count)
+                            return A, y, alpha, c_1, c_1_prime, c_2, c_2_prime, q, b_prime
+                        """
+
+                        c_1 = self.pointcloud[computed_points_b[0]]
+                        c_1_prime = self.coords[computed_points_b[0]]
+                        dist_1 = dist_matrix[idx, computed_points_b[0]]
 
                         m = gp.Model()
                         m.setParam('OutputFlag', 0)
                         m.setParam(GRB.Param.NonConvex, 2)
+
                         x = m.addMVar(shape=int(self.dim), lb=float('-inf'))
+
+                        z1 = m.addMVar(shape=int(self.dim), lb=float('-inf'))
+
                         Q = A.T @ A
                         c = -2 * y.T @ A
-                        obj = x @ Q @ x + c @ x + y.T @ y
+                        obj = (x @ Q @ x + c @ x + y.T @ y) * beta[0]
+
                         m.setObjective(obj, GRB.MINIMIZE)
-                        m.addConstr(x@x == alpha**2, name="c")
+
+                        c0 = m.addConstr(x@x == alpha**2, name="c0")
+
+                        _ = m.addConstr(z1 == x+b_prime-c_1_prime, name="d1")
+                        d1 = m.addConstr(z1@z1 == dist_1**2, name="d11")
+
+                        m.feasRelax(relaxobjtype=1, minrelax=True, vars=None, lbpen=None, ubpen=None, constrs=[c0, d1], rhspen=beta[1:-1])
+
                         m.optimize()
-                        self.coords[idx] = x.X + b_prime 
+
+                        self.coords[idx] = x.X + b_prime
                 else:
                     m = gp.Model()
                     m.setParam('OutputFlag', 0)
@@ -629,7 +668,7 @@ class Simplex:
                     x = m.addMVar(shape=2, lb=float('-inf'))
                     Q = A.T @ A
                     c = -2 * y.T @ A
-                    obj = (x @ Q @ x + c @ x + y.T @ y)
+                    obj = x @ Q @ x + c @ x + y.T @ y
                     m.setObjective(obj, GRB.MINIMIZE)
                     c0 = m.addConstr(x@x == alpha**2, name="c0")
                     m.optimize()
@@ -762,6 +801,7 @@ class Simplex:
         return boundary_points, p_dist
 
 
+        
 def old_compute_boundary(S0, **kwargs):
     """
     
