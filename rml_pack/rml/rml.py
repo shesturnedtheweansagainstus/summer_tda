@@ -71,13 +71,17 @@ def local_neighborhood(data, scale):
     scale: list [k1, k2] with k1, k2 integers describing the number of nearest neighbors that will comprise the annulus
     '''
     D = distance_matrix(data, data)
+    #D = dijkstra(S_b.edge_matrix, return_predecessors=False)
     n = scale[1]-scale[0]
-    local_neigh = np.ndarray(shape=(len(D),n), dtype=int, order='F')
-    radius = np.ndarray(shape=(len(D),2), dtype=float, order='F')
-    for i in range(len(D)):
+    m = len(D)
+
+    local_neigh = np.ndarray(shape=(m,n), dtype=int, order='F')
+    radius = np.ndarray(shape=(m,2), dtype=float, order='F')
+
+    for i in range(m):
         local_neigh[i] = np.argsort(D[i])[scale[0]:scale[1]] # the annulus neighborhood of point i in data
     D.sort()
-    for i in range(len(D)):
+    for i in range(m):
         radius[i] = [D[i][scale[0]], D[i][scale[1]]] # the pair [r1,r2] of radii associated to the annulus neighborhood
     return local_neigh, radius 
 
@@ -583,7 +587,7 @@ class Simplex:
                 A = self.coords[computed_points_b] - b_prime  # (k, dim) then U (with full_matrices=False) gives (k, dim) for U and U^Tb has (dim,)
                 A /= np.linalg.norm(A, axis=1).reshape(k, 1) * alpha  
 
-                if beta != None and dist_matrix[p_idx, idx] >= 0.6 * geo_rad:
+                if beta != None and dist_matrix[p_idx, idx] >= 0.7 * geo_rad:
                     count1 += 1
 
                     c_1 = self.pointcloud[computed_points_b[0]]
@@ -788,20 +792,21 @@ class Simplex:
 
         return p_idx, edge
 
-    def compute_boundary(self):
+
+def compute_boundary0(S):
         """
         
         """
 
-        mask = compute_local_persistence(self.coords, [40, 80], self.dim)  # test more parameters
-        dist_matrix, predecessors = dijkstra(self.edge_matrix, return_predecessors=True) 
+        mask = compute_local_persistence(S.coords, [40, 80], S.dim)  # test more parameters
+        dist_matrix = dijkstra(S.edge_matrix) 
         boundary_points = np.where(mask==0)[0]
+        non_boundary_points = np.where(mask!=0)[0]
         p_idx = boundary_points[0]
         p_dist = dist_matrix[p_idx, boundary_points]
-        return boundary_points, p_dist
 
+        return boundary_points, non_boundary_points, p_dist
 
-        
 def old_compute_boundary(S0, **kwargs):
     """
     
@@ -836,7 +841,7 @@ def compute_boundary(S0, **kwargs):
     
     """
     mask = compute_local_persistence(S0.coords, [40, 80], S0.dim)  # test more parameters
-    dist_matrix, predecessors = dijkstra(S0.edge_matrix, return_predecessors=True) 
+    dist_matrix, _ = dijkstra(S0.edge_matrix, return_predecessors=True) 
     boundary_points = np.where(mask==0)[0]
 
     p_idx = boundary_points[0]

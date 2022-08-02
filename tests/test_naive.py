@@ -186,20 +186,26 @@ def test_boundary(dataset, c, **kwargs):
     S = rml.Simplex()
     S.build_simplex(dataset, **kwargs)
     
-    p_idx, _ = S.normal_coords()
+    #p_idx, _ = S.normal_coords()
+    _ = S.normal_coords_trade(**kwargs)
     b_params = {'k':10, 'threshold_var':0.08, 'edge_sen':1} 
-    boundary_points, p_dist = S.compute_boundary()
+
+    S_b = rml.Simplex()
+    S_b.build_simplex(S.coords, **b_params)
+
+    #boundary_points, p_dist = S.compute_boundary()
+    boundary_points, p_dist = rml.compute_boundary0(S)
+    print(len(boundary_points))
 
     fig = plt.figure(figsize=(20, 10))
     fig.suptitle(", ".join([i+"="+str(kwargs[i]) for i in kwargs.keys()]) + f', dim={S.dim}, n={len(dataset)}')
 
-    ax1 = fig.add_subplot(1, 2, 1, projection='3d')
-    ax2 = fig.add_subplot(1, 2, 2)
-    #ax3 = fig.add_subplot(1, 3, 3)
+    ax1 = fig.add_subplot(1, 3, 1, projection='3d')
+    ax2 = fig.add_subplot(1, 3, 2)
+    ax3 = fig.add_subplot(1, 3, 3)
 
     ax1.scatter3D(dataset[:, 0], dataset[:, 1], dataset[:, 2], c=c, alpha=0.1) 
     ax1.scatter3D(dataset[boundary_points, 0], dataset[boundary_points, 1], dataset[boundary_points, 2], c=p_dist, cmap='RdPu')
-    ax1.scatter3D(dataset[p_idx,0], dataset[p_idx, 1], dataset[p_idx, 2], marker='>', color='g', s=100)
 
     for i in range(len(dataset)):
         for k in S.edges[i]:
@@ -208,13 +214,58 @@ def test_boundary(dataset, c, **kwargs):
     ax2.scatter(S.coords[:, 0], S.coords[:, 1], c=c, alpha=0.2)
     ax2.scatter(S.coords[boundary_points, 0], S.coords[boundary_points, 1], c=p_dist, cmap='RdPu')
 
-    #ax3.scatter(S_b.pointcloud[:, 0], S_b.pointcloud[:, 1])
+    ax3.scatter(S_b.pointcloud[:, 0], S_b.pointcloud[:, 1], color='r')
+    ax3.scatter(S_b.pointcloud[boundary_points, 0], S_b.pointcloud[boundary_points, 1], color='b')
 
-    #for i in range(len(S_b.pointcloud)):
-    #    for k in S_b.edges[i]:
-    #        ax3.plot([S_b.pointcloud[i][0], S_b.pointcloud[k][0]],[S_b.pointcloud[i][1], S_b.pointcloud[k][1]], color='black', alpha=0.1)
+
+    for i in range(len(S_b.pointcloud)):
+        for k in S_b.edges[i]:
+            ax3.plot([S_b.pointcloud[i][0], S_b.pointcloud[k][0]],[S_b.pointcloud[i][1], S_b.pointcloud[k][1]], color='black', alpha=0.1)
 
     plt.show()
+
+def compare_local_hom(dataset, c, **kwargs):
+    """
+    
+    """
+    S = rml.Simplex()
+    S.build_simplex(dataset, **kwargs)
+    p_idx, _ = S.normal_coords_trade(**kwargs)
+    boundary_points, non_boundary_points, p_dist = rml.compute_boundary0(S)
+
+    mask = rml.compute_local_persistence(S.pointcloud, [40, 80], S.dim)
+    boundary_points_manifold = np.where(mask==0)[0]
+    non_boundary_points_manifold = np.where(mask!=0)[0]
+
+    boundary_intersection = np.intersect1d(boundary_points, boundary_points_manifold)
+
+    fig = plt.figure(figsize=(20, 10))
+    fig.suptitle(", ".join([i+"="+str(kwargs[i]) for i in kwargs.keys()]) + f', dim={S.dim}, n={len(dataset)}')
+
+    ax1 = fig.add_subplot(1, 2, 1, projection='3d')
+    ax2 = fig.add_subplot(1, 2, 2)
+
+    ax1.scatter3D(dataset[non_boundary_points_manifold, 0], dataset[non_boundary_points_manifold, 1], dataset[non_boundary_points_manifold, 2], c=c[non_boundary_points_manifold], alpha=0.3)
+    ax1.scatter3D(dataset[p_idx,0], dataset[p_idx, 1], dataset[p_idx, 2], marker='>', color='purple', s=100)
+
+    ax1.scatter3D(dataset[boundary_points, 0], dataset[boundary_points, 1], dataset[boundary_points, 2], c='orange', alpha=0.8)  # red for boundary of projection
+    ax1.scatter3D(dataset[boundary_points_manifold, 0], dataset[boundary_points_manifold, 1], dataset[boundary_points_manifold, 2], c='b', alpha=0.8)  # red for boundary of projection
+    ax1.scatter3D(dataset[boundary_intersection, 0], dataset[boundary_intersection, 1], dataset[boundary_intersection, 2], c='r')
+
+    for i in range(len(dataset)):
+        for k in S.edges[i]:
+            ax1.plot3D([dataset[i][0], dataset[k][0]],[dataset[i][1], dataset[k][1]], [dataset[i][2], dataset[k][2]], color='black', alpha=0.1)
+
+    ax2.scatter(S.coords[non_boundary_points, 0], S.coords[non_boundary_points, 1], c=c[non_boundary_points], alpha=0.3)
+
+    ax2.scatter(S.coords[boundary_points, 0], S.coords[boundary_points, 1], c='orange', alpha=0.8, label='boundary points of projection')
+    ax2.scatter(S.coords[boundary_points_manifold, 0], S.coords[boundary_points_manifold, 1], c='b', alpha=0.8, label='boundary points of manifold')
+    ax2.scatter(S.coords[boundary_intersection, 0], S.coords[boundary_intersection, 1], c='r', label='intersection of boundary points')
+
+    ax2.legend()
+
+    plt.show()
+
 
 if __name__ == '__main__':
 
@@ -230,10 +281,10 @@ if __name__ == '__main__':
 
     #dataset = [point, uni_point, swiss, sphere1, sphere2, sphere3, sphere4]
     #dataset = [point, point[:, 0]]
-    #dataset = [sphere1, sphere1[:, 0]]
+    dataset = [sphere1, sphere1[:, 0]]
     #dataset = [sphere4, sphere4[:, 0]]
     #dataset = [sphere2, sphere2[:, 0]]
-    dataset = [sphere5, sphere5[:, 0]]
+    #dataset = [sphere5, sphere5[:, 0]]
     #dataset = [swiss, swiss_c]
     #dataset = [swissn, swiss_cn]
     #dataset = [s_curven, s_curve_cn]
@@ -244,12 +295,14 @@ if __name__ == '__main__':
 
     datasets = [dataset]
 
-    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.05, 'edge_sen':2, 'k0':3, 'beta':[0.85, 100, 0.15, 0.15]}  # change edge sen
+    #params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.08, 'edge_sen':1.5, 'k0':10}
+    params = {'max_components':5, 'S':0.5, 'k':10, 'threshold_var':0.05, 'edge_sen':1.5, 'k0':10, 'beta':[0.8, 4, 0.2, 0.2]}  # change edge sen
 
     for dataset in datasets:
         #test_normal_coords_edges(dataset, dataset[:, 0], k=10, threshold_var=0.08, edge_sen=1)
-        test_normal_coords(*dataset, **params)
+        #test_normal_coords(*dataset, **params)
         #test_boundary(*dataset, **params)
+        compare_local_hom(*dataset, **params)
         pass
 
 
