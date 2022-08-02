@@ -669,7 +669,7 @@ class Simplex:
                     m.setParam('OutputFlag', 0)
                     m.setParam(GRB.Param.NonConvex, 2)
 
-                    x = m.addMVar(shape=2, lb=float('-inf'))
+                    x = m.addMVar(shape=int(self.dim), lb=float('-inf'))
                     Q = A.T @ A
                     c = -2 * y.T @ A
                     obj = x @ Q @ x + c @ x + y.T @ y
